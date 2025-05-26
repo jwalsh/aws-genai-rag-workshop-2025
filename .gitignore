@@ -66,3 +66,9 @@ models/
 
 # Generated files
 README.md
+
+# Presentation auxiliary files (keep PDF for review)
+presentation.tex
+presentation.html
+timeline.png
+architecture.png
