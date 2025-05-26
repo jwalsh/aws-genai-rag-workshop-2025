@@ -19,28 +19,28 @@
 - *Issue*: GPG signing failed, resolved with =--no-gpg-sign=
 
 ** Documentation Phase (16:45)
-- Created CLAUDE.org with development commands and architecture
-- Added workshop-focused README.org 
-- Set up contributor guidelines (CONTRIBUTING.org)
-- Added security policy (SECURITY.org)
-- Added MIT license
+- Created [[file:../../CLAUDE.org][CLAUDE.org]] with development commands and architecture
+- Added workshop-focused [[file:../../README.org][README.org]] 
+- Set up contributor guidelines ([[file:../../CONTRIBUTING.org][CONTRIBUTING.org]])
+- Added security policy ([[file:../../SECURITY.org][SECURITY.org]])
+- Added MIT [[file:../../LICENSE][LICENSE]]
 
 ** Environment Configuration (17:00)
-- Created =.envrc= for direnv support
-- Enhanced =.env.example= with API keys placeholders
+- Created [[file:../../.envrc][.envrc]] for direnv support
+- Enhanced [[file:../../.env.example][.env.example]] with API keys placeholders
 - Set up automatic virtual environment activation
 - Added support for Anthropic and OpenAI API keys
 
 ** Build System Improvements (17:15)
-- Created =make-support.el= for Emacs operations
-- Simplified Makefile with glob patterns
-- Moved complex operations to =scripts/=
+- Created [[file:../../make-support.el][make-support.el]] for Emacs operations
+- Simplified [[file:../../Makefile][Makefile]] with glob patterns
+- Moved complex operations to [[file:../../scripts/][scripts/]] directory
 - Set up README.md generation from README.org
 - *Issue*: Initial pandoc approach replaced with Emacs ox-md
 
 ** Workshop Content (17:30)
-- Created comprehensive Module 1: RAG Basics notebook
-- Started Module 2: Advanced RAG notebook
+- Created comprehensive Module 1: [[file:../../notebooks/01_rag_basics.org][RAG Basics notebook]]
+- Started Module 2: [[file:../../notebooks/02_advanced_rag.org][Advanced RAG notebook]]
 - Implemented proper =:tangle= support for code extraction
 - Added exercises and examples
 
@@ -57,14 +57,15 @@
 - *Issue*: AWS credentials not configured (noted in output)
 
 ** Visual Assets & Prompts (17:45)
-- Added workshop banner image (1024x243)
-- Created =prompts/= directory with comprehensive collection
-- Documented image generation prompt
+- Added workshop [[file:../../assets/images/rag-architecture-banner.jpeg][banner image]] (1024x243)
+- Created [[file:../../prompts/][prompts/]] directory with comprehensive collection
+- Documented [[file:../../prompts/header-image.txt][image generation prompt]]
 - Added prompts for RAG, SQL, evaluation, etc.
+- Created [[file:../../prompts/README.org][prompts documentation]]
 
 ** Quality Assurance (17:50)
 - Created review prompts for notebooks and code
-- Added Claude =/review= command
+- Added Claude [[file:../../.claude/commands/review.md][/review command]]
 - Set up quality checklists
 - Documented review process
 
