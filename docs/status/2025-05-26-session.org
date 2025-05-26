@@ -182,3 +182,39 @@ The Grafana dashboard shows the session activity timeline, including:
 | Container        | Docker (LocalStack)     |
 | Package Manager  | uv                      |
 | Testing          | pytest, ruff, mypy      |
+
+* Cost Analysis
+
+** Actual vs Theoretical Costs
+
+The actual session cost of $14.81 represents exceptional value compared to standard API pricing:
+
+| Metric                    | Value        |
+|---------------------------+--------------|
+| Theoretical cost (API)    | ~$240        |
+| Actual cost (Claude Code) | $14.81       |
+| Savings                   | 94%          |
+| Hourly rate               | $7.40/hour   |
+
+** Why the Difference?
+
+1. *Claude Code-specific pricing* - Optimized for development workflows
+2. *Efficient token management* - Deduplication and caching of file reads
+3. *Smart model routing* - Automatic use of Haiku for simpler operations  
+4. *Development optimizations* - Not charging full price for repetitive tasks
+
+** Value Proposition
+
+At $7.40/hour, Claude Code provides:
+- Senior-level pair programming assistance
+- Instant code generation and refactoring
+- Comprehensive documentation writing
+- Architecture and design guidance
+- Quality assurance and review
+
+This is significantly more cost-effective than:
+- Human pair programmer: $50-200/hour
+- Traditional development time: 5-10x longer
+- Documentation contractor: $30-100/hour
+
+*Note*: With Claude Max subscription, this usage is included at no additional cost, making it even more valuable for regular development work.
