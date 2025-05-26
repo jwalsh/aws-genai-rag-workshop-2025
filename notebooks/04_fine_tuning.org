@@ -1,0 +1,1258 @@
+#+TITLE: Fine-tuning Models for Domain-Specific RAG
+#+AUTHOR: aygp-dr
+#+DATE: 2025-05-26
+#+PROPERTY: header-args:python :results output :session *fine-tuning* :mkdirp yes
+
+* Overview
+
+This notebook explores fine-tuning techniques for improving RAG system performance in domain-specific applications. We'll cover:
+- When and why to fine-tune models for RAG
+- Fine-tuning embedding models for better retrieval
+- Adapter-based fine-tuning for LLMs
+- AWS Bedrock Custom Model Import
+- Evaluation and comparison with base models
+
+* Learning Objectives
+
+By the end of this notebook, you will:
+- Understand when fine-tuning is beneficial for RAG systems
+- Know how to prepare domain-specific training data
+- Implement fine-tuning for embedding models
+- Use AWS Bedrock's custom model capabilities
+- Evaluate fine-tuned model performance
+
+* Setup
+
+#+begin_src python :tangle ../src/fine_tuning/__init__.py
+"""Fine-tuning utilities for RAG models."""
+#+end_src
+
+#+begin_src python :tangle ../src/fine_tuning/data_preparation.py
+"""Data preparation for fine-tuning."""
+import json
+import random
+from typing import List, Dict, Tuple, Optional
+from dataclasses import dataclass
+import pandas as pd
+from pathlib import Path
+
+@dataclass
+class TrainingExample:
+    """Training example for fine-tuning."""
+    query: str
+    positive_passage: str
+    negative_passages: List[str]
+    metadata: Optional[Dict] = None
+
+class FinetuningDataPrep:
+    """Prepare data for fine-tuning embedding and LLM models."""
+    
+    def __init__(self, domain: str = "general"):
+        self.domain = domain
+        self.training_data = []
+    
+    def create_embedding_training_data(
+        self,
+        documents: List[Dict[str, str]],
+        queries: List[Dict[str, str]],
+        relevance_judgments: Dict[str, List[str]]
+    ) -> List[TrainingExample]:
+        """
+        Create training data for embedding model fine-tuning.
+        
+        Args:
+            documents: List of documents with 'id' and 'text'
+            queries: List of queries with 'id' and 'text'
+            relevance_judgments: Mapping of query_id to relevant doc_ids
+        """
+        doc_map = {doc['id']: doc['text'] for doc in documents}
+        training_examples = []
+        
+        for query in queries:
+            query_id = query['id']
+            query_text = query['text']
+            
+            # Get relevant documents
+            relevant_doc_ids = relevance_judgments.get(query_id, [])
+            if not relevant_doc_ids:
+                continue
+            
+            # Create positive examples
+            for relevant_id in relevant_doc_ids:
+                if relevant_id not in doc_map:
+                    continue
+                
+                positive_passage = doc_map[relevant_id]
+                
+                # Sample negative passages (hard negatives preferred)
+                negative_ids = [
+                    doc_id for doc_id in doc_map.keys()
+                    if doc_id not in relevant_doc_ids
+                ]
+                
+                # Sample up to 5 negative passages
+                num_negatives = min(5, len(negative_ids))
+                sampled_negative_ids = random.sample(negative_ids, num_negatives)
+                negative_passages = [doc_map[neg_id] for neg_id in sampled_negative_ids]
+                
+                training_examples.append(TrainingExample(
+                    query=query_text,
+                    positive_passage=positive_passage,
+                    negative_passages=negative_passages,
+                    metadata={
+                        'query_id': query_id,
+                        'positive_doc_id': relevant_id,
+                        'domain': self.domain
+                    }
+                ))
+        
+        return training_examples
+    
+    def create_llm_training_data(
+        self,
+        qa_pairs: List[Dict[str, str]],
+        context_documents: Optional[List[Dict[str, str]]] = None
+    ) -> List[Dict[str, str]]:
+        """
+        Create training data for LLM fine-tuning in RAG context.
+        
+        Args:
+            qa_pairs: List of Q&A pairs with 'question', 'answer', and optional 'context'
+            context_documents: Additional context documents
+        """
+        training_data = []
+        
+        for qa in qa_pairs:
+            # Format for instruction tuning
+            if 'context' in qa:
+                instruction = (
+                    "Answer the following question based on the given context.\n\n"
+                    f"Context: {qa['context']}\n\n"
+                    f"Question: {qa['question']}"
+                )
+            else:
+                instruction = f"Question: {qa['question']}"
+            
+            training_data.append({
+                "instruction": instruction,
+                "output": qa['answer'],
+                "domain": self.domain
+            })
+        
+        return training_data
+    
+    def format_for_sentence_transformers(
+        self,
+        examples: List[TrainingExample]
+    ) -> pd.DataFrame:
+        """Format data for sentence-transformers training."""
+        data = []
+        
+        for ex in examples:
+            # Positive pair
+            data.append({
+                'query': ex.query,
+                'passage': ex.positive_passage,
+                'label': 1.0
+            })
+            
+            # Negative pairs
+            for neg_passage in ex.negative_passages:
+                data.append({
+                    'query': ex.query,
+                    'passage': neg_passage,
+                    'label': 0.0
+                })
+        
+        return pd.DataFrame(data)
+    
+    def save_training_data(self, data: List, output_path: str, format: str = "jsonl"):
+        """Save training data to file."""
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        if format == "jsonl":
+            with open(output_path, 'w') as f:
+                for item in data:
+                    f.write(json.dumps(item) + '\n')
+        elif format == "csv":
+            pd.DataFrame(data).to_csv(output_path, index=False)
+        else:
+            raise ValueError(f"Unsupported format: {format}")
+#+end_src
+
+* Fine-tuning Embedding Models
+
+** Preparing Domain-Specific Training Data
+
+#+begin_src python
+# Example: Creating training data for a medical domain RAG system
+prep = FinetuningDataPrep(domain="medical")
+
+# Sample medical documents
+documents = [
+    {"id": "doc1", "text": "Hypertension is a chronic medical condition where blood pressure in the arteries is persistently elevated."},
+    {"id": "doc2", "text": "Diabetes mellitus is a group of metabolic disorders characterized by high blood sugar levels."},
+    {"id": "doc3", "text": "Antibiotics are medications used to treat bacterial infections by killing or inhibiting bacteria growth."},
+    {"id": "doc4", "text": "The heart is a muscular organ that pumps blood throughout the body via the circulatory system."},
+    {"id": "doc5", "text": "Vaccines work by training the immune system to recognize and fight specific pathogens."},
+]
+
+# Sample queries with relevance judgments
+queries = [
+    {"id": "q1", "text": "What causes high blood pressure?"},
+    {"id": "q2", "text": "How do vaccines protect against diseases?"},
+    {"id": "q3", "text": "What are the symptoms of diabetes?"},
+]
+
+relevance_judgments = {
+    "q1": ["doc1"],
+    "q2": ["doc5"],
+    "q3": ["doc2"],
+}
+
+# Create training examples
+training_examples = prep.create_embedding_training_data(
+    documents, queries, relevance_judgments
+)
+
+print(f"Created {len(training_examples)} training examples")
+print(f"\nExample training instance:")
+print(f"Query: {training_examples[0].query}")
+print(f"Positive passage: {training_examples[0].positive_passage[:100]}...")
+print(f"Number of negative passages: {len(training_examples[0].negative_passages)}")
+
+# Format for sentence-transformers
+df = prep.format_for_sentence_transformers(training_examples)
+print(f"\nTraining dataframe shape: {df.shape}")
+print(df.head())
+#+end_src
+
+** Implementing Fine-tuning with Sentence Transformers
+
+#+begin_src python :tangle ../src/fine_tuning/embedding_finetuning.py
+"""Fine-tuning embedding models for domain-specific RAG."""
+from sentence_transformers import SentenceTransformer, InputExample, losses
+from sentence_transformers.evaluation import EmbeddingSimilarityEvaluator
+from torch.utils.data import DataLoader
+import torch
+from typing import List, Tuple, Optional
+import numpy as np
+from pathlib import Path
+
+class EmbeddingFineTuner:
+    """Fine-tune embedding models for better domain-specific retrieval."""
+    
+    def __init__(
+        self,
+        base_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+        device: str = None
+    ):
+        self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = SentenceTransformer(base_model, device=self.device)
+        self.base_model_name = base_model
+    
+    def prepare_training_data(
+        self,
+        training_examples: List[TrainingExample]
+    ) -> List[InputExample]:
+        """Convert training examples to sentence-transformers format."""
+        input_examples = []
+        
+        for ex in training_examples:
+            # Positive example
+            input_examples.append(
+                InputExample(
+                    texts=[ex.query, ex.positive_passage],
+                    label=1.0
+                )
+            )
+            
+            # Negative examples
+            for neg_passage in ex.negative_passages:
+                input_examples.append(
+                    InputExample(
+                        texts=[ex.query, neg_passage],
+                        label=0.0
+                    )
+                )
+        
+        return input_examples
+    
+    def create_dataloader(
+        self,
+        input_examples: List[InputExample],
+        batch_size: int = 16,
+        shuffle: bool = True
+    ) -> DataLoader:
+        """Create DataLoader for training."""
+        return DataLoader(
+            input_examples,
+            batch_size=batch_size,
+            shuffle=shuffle
+        )
+    
+    def fine_tune(
+        self,
+        train_examples: List[TrainingExample],
+        val_examples: Optional[List[TrainingExample]] = None,
+        epochs: int = 3,
+        batch_size: int = 16,
+        warmup_steps: int = 100,
+        output_path: str = "./fine_tuned_model"
+    ):
+        """Fine-tune the embedding model."""
+        # Prepare training data
+        train_input = self.prepare_training_data(train_examples)
+        train_dataloader = self.create_dataloader(train_input, batch_size)
+        
+        # Use Cosine Similarity loss for training
+        train_loss = losses.CosineSimilarityLoss(self.model)
+        
+        # Create evaluator if validation data provided
+        evaluator = None
+        if val_examples:
+            val_input = self.prepare_training_data(val_examples)
+            sentences1 = [ex.texts[0] for ex in val_input]
+            sentences2 = [ex.texts[1] for ex in val_input]
+            scores = [ex.label for ex in val_input]
+            
+            evaluator = EmbeddingSimilarityEvaluator(
+                sentences1, sentences2, scores,
+                name='val_similarity'
+            )
+        
+        # Train the model
+        self.model.fit(
+            train_objectives=[(train_dataloader, train_loss)],
+            epochs=epochs,
+            warmup_steps=warmup_steps,
+            evaluator=evaluator,
+            evaluation_steps=500,
+            output_path=output_path,
+            save_best_model=True
+        )
+        
+        print(f"Model fine-tuned and saved to {output_path}")
+    
+    def evaluate_retrieval(
+        self,
+        queries: List[str],
+        documents: List[str],
+        relevant_indices: List[List[int]],
+        k: int = 5
+    ) -> Dict[str, float]:
+        """Evaluate retrieval performance."""
+        # Encode queries and documents
+        query_embeddings = self.model.encode(queries, convert_to_tensor=True)
+        doc_embeddings = self.model.encode(documents, convert_to_tensor=True)
+        
+        # Calculate similarities
+        similarities = torch.nn.functional.cosine_similarity(
+            query_embeddings.unsqueeze(1),
+            doc_embeddings.unsqueeze(0),
+            dim=2
+        )
+        
+        # Calculate metrics
+        metrics = {
+            'recall@k': 0.0,
+            'precision@k': 0.0,
+            'mrr': 0.0  # Mean Reciprocal Rank
+        }
+        
+        for i, relevant_docs in enumerate(relevant_indices):
+            # Get top-k documents
+            top_k_indices = torch.topk(similarities[i], k).indices.cpu().numpy()
+            
+            # Calculate recall
+            relevant_in_top_k = len(set(top_k_indices) & set(relevant_docs))
+            metrics['recall@k'] += relevant_in_top_k / len(relevant_docs)
+            
+            # Calculate precision
+            metrics['precision@k'] += relevant_in_top_k / k
+            
+            # Calculate MRR
+            for rank, doc_idx in enumerate(top_k_indices):
+                if doc_idx in relevant_docs:
+                    metrics['mrr'] += 1 / (rank + 1)
+                    break
+        
+        # Average metrics
+        num_queries = len(queries)
+        metrics = {k: v / num_queries for k, v in metrics.items()}
+        
+        return metrics
+    
+    def compare_with_base_model(
+        self,
+        test_queries: List[str],
+        test_documents: List[str],
+        relevant_indices: List[List[int]],
+        fine_tuned_path: str,
+        k: int = 5
+    ):
+        """Compare fine-tuned model with base model."""
+        # Evaluate base model
+        print("Evaluating base model...")
+        base_metrics = self.evaluate_retrieval(
+            test_queries, test_documents, relevant_indices, k
+        )
+        
+        # Load and evaluate fine-tuned model
+        print("Evaluating fine-tuned model...")
+        self.model = SentenceTransformer(fine_tuned_path)
+        finetuned_metrics = self.evaluate_retrieval(
+            test_queries, test_documents, relevant_indices, k
+        )
+        
+        # Print comparison
+        print("\n=== Model Comparison ===")
+        print(f"{'Metric':<15} {'Base Model':<15} {'Fine-tuned':<15} {'Improvement':<15}")
+        print("-" * 60)
+        
+        for metric in base_metrics:
+            base_val = base_metrics[metric]
+            tuned_val = finetuned_metrics[metric]
+            improvement = ((tuned_val - base_val) / base_val) * 100
+            print(f"{metric:<15} {base_val:<15.3f} {tuned_val:<15.3f} {improvement:>+14.1f}%")
+#+end_src
+
+** Example: Fine-tuning for Medical Domain
+
+#+begin_src python
+# Initialize fine-tuner
+fine_tuner = EmbeddingFineTuner(base_model="sentence-transformers/all-MiniLM-L6-v2")
+
+# Create more comprehensive medical training data
+medical_docs = [
+    {"id": "d1", "text": "Insulin resistance occurs when cells fail to respond normally to insulin, leading to type 2 diabetes."},
+    {"id": "d2", "text": "ACE inhibitors are medications that help relax blood vessels and lower blood pressure."},
+    {"id": "d3", "text": "The COVID-19 vaccine uses mRNA technology to teach cells how to make spike proteins."},
+    {"id": "d4", "text": "Chronic kidney disease is the gradual loss of kidney function over time."},
+    {"id": "d5", "text": "Statins are drugs that lower cholesterol levels in the blood."},
+    {"id": "d6", "text": "MRI scans use magnetic fields and radio waves to create detailed body images."},
+    {"id": "d7", "text": "Chemotherapy uses drugs to destroy cancer cells by stopping their growth."},
+    {"id": "d8", "text": "The immune system protects the body from infections and diseases."},
+]
+
+medical_queries = [
+    {"id": "q1", "text": "How do blood pressure medications work?"},
+    {"id": "q2", "text": "What is the mechanism of mRNA vaccines?"},
+    {"id": "q3", "text": "Treatment options for high cholesterol"},
+    {"id": "q4", "text": "How does chemotherapy treat cancer?"},
+]
+
+medical_relevance = {
+    "q1": ["d2"],
+    "q2": ["d3"],
+    "q3": ["d5"],
+    "q4": ["d7"],
+}
+
+# Create training examples
+train_examples = prep.create_embedding_training_data(
+    medical_docs, medical_queries, medical_relevance
+)
+
+print(f"Training with {len(train_examples)} examples")
+
+# Note: Actual fine-tuning would require more data and computational resources
+# This is a demonstration of the process
+
+# Evaluate without fine-tuning (baseline)
+test_queries = ["medication for hypertension", "vaccine technology", "cancer treatment"]
+test_docs = [doc["text"] for doc in medical_docs]
+relevant_indices = [[1], [2], [6]]  # Indices of relevant documents
+
+print("\nBaseline evaluation:")
+baseline_metrics = fine_tuner.evaluate_retrieval(
+    test_queries, test_docs, relevant_indices, k=3
+)
+for metric, value in baseline_metrics.items():
+    print(f"{metric}: {value:.3f}")
+#+end_src
+
+* Fine-tuning LLMs for RAG-Specific Tasks
+
+#+begin_src python :tangle ../src/fine_tuning/llm_finetuning.py
+"""Fine-tuning LLMs for RAG-specific tasks."""
+import json
+from typing import List, Dict, Optional
+import torch
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    TrainingArguments,
+    Trainer,
+    DataCollatorForLanguageModeling
+)
+from datasets import Dataset
+import numpy as np
+
+class RAGLLMFineTuner:
+    """Fine-tune LLMs for RAG-specific response generation."""
+    
+    def __init__(
+        self,
+        model_name: str = "microsoft/phi-2",  # Small model for demonstration
+        device: str = None
+    ):
+        self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model_name = model_name
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+        )
+        
+        # Add padding token if not present
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+    
+    def prepare_rag_training_data(
+        self,
+        examples: List[Dict[str, str]]
+    ) -> Dataset:
+        """
+        Prepare training data for RAG-specific fine-tuning.
+        
+        Expected format:
+        {
+            "query": "user question",
+            "context": "retrieved context",
+            "response": "expected response"
+        }
+        """
+        def format_example(example):
+            # Format for instruction-following
+            prompt = (
+                "Given the following context, answer the question.\n\n"
+                f"Context: {example['context']}\n\n"
+                f"Question: {example['query']}\n\n"
+                "Answer: "
+            )
+            
+            full_text = prompt + example['response']
+            
+            # Tokenize
+            encoding = self.tokenizer(
+                full_text,
+                truncation=True,
+                max_length=512,
+                padding='max_length'
+            )
+            
+            # Create labels (mask the prompt part)
+            labels = encoding['input_ids'].copy()
+            prompt_length = len(self.tokenizer.encode(prompt, truncation=True))
+            labels[:prompt_length] = [-100] * prompt_length  # Ignore prompt in loss
+            
+            encoding['labels'] = labels
+            return encoding
+        
+        # Convert to dataset
+        dataset = Dataset.from_list(examples)
+        dataset = dataset.map(format_example, remove_columns=dataset.column_names)
+        
+        return dataset
+    
+    def create_rag_specific_prompts(self) -> List[Dict[str, str]]:
+        """Create training examples for different RAG scenarios."""
+        examples = [
+            # Factual answering with context
+            {
+                "query": "What is the capital of France?",
+                "context": "France is a country in Western Europe. Its capital and largest city is Paris, which is known for landmarks like the Eiffel Tower.",
+                "response": "The capital of France is Paris."
+            },
+            # Synthesis from multiple sources
+            {
+                "query": "How do neural networks learn?",
+                "context": "Neural networks learn through backpropagation, adjusting weights based on error. The process involves forward pass, loss calculation, and gradient descent to minimize error.",
+                "response": "Neural networks learn through a process called backpropagation, where they adjust their weights based on the error between predicted and actual outputs. This involves computing gradients and using gradient descent to minimize the loss function."
+            },
+            # Handling insufficient context
+            {
+                "query": "What is the population of Mars?",
+                "context": "Mars is the fourth planet from the Sun. It has a thin atmosphere and is often called the Red Planet due to iron oxide on its surface.",
+                "response": "I don't have information about the population of Mars in the provided context. Mars is a planet and doesn't have a human population, though various space agencies have plans for future Mars colonization."
+            },
+            # Combining context with reasoning
+            {
+                "query": "Why is recycling important?",
+                "context": "Recycling reduces waste in landfills, conserves natural resources, and requires less energy than producing new materials. It helps reduce greenhouse gas emissions.",
+                "response": "Recycling is important because it reduces waste in landfills, conserves natural resources, requires less energy than creating new materials, and helps reduce greenhouse gas emissions, contributing to environmental protection."
+            }
+        ]
+        
+        return examples
+    
+    def fine_tune_for_rag(
+        self,
+        training_examples: List[Dict[str, str]],
+        output_dir: str = "./fine_tuned_rag_model",
+        num_epochs: int = 3,
+        batch_size: int = 4,
+        learning_rate: float = 5e-5
+    ):
+        """Fine-tune model for RAG-specific tasks."""
+        # Prepare dataset
+        train_dataset = self.prepare_rag_training_data(training_examples)
+        
+        # Training arguments
+        training_args = TrainingArguments(
+            output_dir=output_dir,
+            num_train_epochs=num_epochs,
+            per_device_train_batch_size=batch_size,
+            per_device_eval_batch_size=batch_size,
+            warmup_steps=100,
+            weight_decay=0.01,
+            logging_dir=f"{output_dir}/logs",
+            logging_steps=10,
+            save_steps=500,
+            evaluation_strategy="steps",
+            eval_steps=500,
+            save_total_limit=2,
+            load_best_model_at_end=True,
+            learning_rate=learning_rate,
+            fp16=torch.cuda.is_available(),
+        )
+        
+        # Data collator
+        data_collator = DataCollatorForLanguageModeling(
+            tokenizer=self.tokenizer,
+            mlm=False,
+        )
+        
+        # Create trainer
+        trainer = Trainer(
+            model=self.model,
+            args=training_args,
+            train_dataset=train_dataset,
+            data_collator=data_collator,
+            tokenizer=self.tokenizer,
+        )
+        
+        # Train
+        trainer.train()
+        
+        # Save model
+        trainer.save_model(output_dir)
+        self.tokenizer.save_pretrained(output_dir)
+        
+        print(f"Model fine-tuned and saved to {output_dir}")
+    
+    def generate_rag_response(
+        self,
+        query: str,
+        context: str,
+        max_length: int = 200,
+        temperature: float = 0.7
+    ) -> str:
+        """Generate response using fine-tuned model."""
+        prompt = (
+            "Given the following context, answer the question.\n\n"
+            f"Context: {context}\n\n"
+            f"Question: {query}\n\n"
+            "Answer: "
+        )
+        
+        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+        
+        with torch.no_grad():
+            outputs = self.model.generate(
+                **inputs,
+                max_length=max_length,
+                temperature=temperature,
+                do_sample=True,
+                pad_token_id=self.tokenizer.pad_token_id
+            )
+        
+        response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        
+        # Extract only the answer part
+        answer_start = response.find("Answer: ") + len("Answer: ")
+        return response[answer_start:].strip()
+
+# Create domain-specific training examples
+def create_medical_rag_examples() -> List[Dict[str, str]]:
+    """Create medical domain training examples."""
+    return [
+        {
+            "query": "What are the symptoms of diabetes?",
+            "context": "Diabetes symptoms include increased thirst, frequent urination, extreme hunger, unexplained weight loss, fatigue, blurred vision, and slow-healing sores.",
+            "response": "The main symptoms of diabetes include increased thirst and frequent urination, extreme hunger, unexplained weight loss, fatigue, blurred vision, and slow-healing sores or cuts."
+        },
+        {
+            "query": "How do antibiotics work?",
+            "context": "Antibiotics work by either killing bacteria or preventing their reproduction. They target specific bacterial processes like cell wall synthesis, protein synthesis, or DNA replication.",
+            "response": "Antibiotics work by targeting specific processes in bacteria. They either kill bacteria directly or prevent them from reproducing by interfering with essential functions like cell wall synthesis, protein production, or DNA replication."
+        },
+        {
+            "query": "What lifestyle changes help with hypertension?",
+            "context": "Managing hypertension involves reducing sodium intake, regular exercise, maintaining healthy weight, limiting alcohol, managing stress, and following the DASH diet rich in fruits and vegetables.",
+            "response": "Lifestyle changes that help with hypertension include reducing sodium intake, exercising regularly, maintaining a healthy weight, limiting alcohol consumption, managing stress, and following a DASH diet that's rich in fruits and vegetables."
+        }
+    ]
+
+# Demonstrate creating training data
+print("=== RAG-Specific LLM Training Examples ===")
+examples = create_medical_rag_examples()
+for i, ex in enumerate(examples[:2]):
+    print(f"\nExample {i+1}:")
+    print(f"Query: {ex['query']}")
+    print(f"Context: {ex['context'][:100]}...")
+    print(f"Expected Response: {ex['response'][:100]}...")
+#+end_src
+
+* AWS Bedrock Custom Model Integration
+
+#+begin_src python :tangle ../src/fine_tuning/bedrock_custom.py
+"""Integration with AWS Bedrock for custom models."""
+import boto3
+import json
+from typing import Dict, List, Optional
+import time
+from datetime import datetime
+
+class BedrockCustomModelManager:
+    """Manage custom models in AWS Bedrock."""
+    
+    def __init__(self, region_name: str = 'us-east-1'):
+        self.bedrock = boto3.client('bedrock', region_name=region_name)
+        self.bedrock_runtime = boto3.client('bedrock-runtime', region_name=region_name)
+        self.s3 = boto3.client('s3', region_name=region_name)
+    
+    def prepare_training_data_for_bedrock(
+        self,
+        training_examples: List[Dict[str, str]],
+        s3_bucket: str,
+        s3_prefix: str = "bedrock-finetuning"
+    ) -> str:
+        """
+        Prepare and upload training data to S3 for Bedrock fine-tuning.
+        
+        Returns S3 URI of the training data.
+        """
+        # Format data for Bedrock (JSONL format)
+        jsonl_data = []
+        for example in training_examples:
+            formatted_example = {
+                "prompt": f"Context: {example.get('context', '')}\n\nQuestion: {example['query']}\n\nAnswer:",
+                "completion": f" {example['response']}"
+            }
+            jsonl_data.append(json.dumps(formatted_example))
+        
+        # Save to temporary file
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"training_data_{timestamp}.jsonl"
+        
+        with open(filename, 'w') as f:
+            f.write('\n'.join(jsonl_data))
+        
+        # Upload to S3
+        s3_key = f"{s3_prefix}/{filename}"
+        self.s3.upload_file(filename, s3_bucket, s3_key)
+        
+        s3_uri = f"s3://{s3_bucket}/{s3_key}"
+        print(f"Training data uploaded to: {s3_uri}")
+        
+        return s3_uri
+    
+    def create_fine_tuning_job(
+        self,
+        job_name: str,
+        base_model_id: str,
+        training_data_uri: str,
+        output_s3_uri: str,
+        hyperparameters: Optional[Dict] = None
+    ) -> Dict:
+        """
+        Create a fine-tuning job in Bedrock.
+        
+        Note: This is a conceptual implementation. Actual Bedrock fine-tuning
+        APIs may differ when available.
+        """
+        # Default hyperparameters
+        if hyperparameters is None:
+            hyperparameters = {
+                "epochs": "3",
+                "batch_size": "8",
+                "learning_rate": "5e-5",
+                "warmup_steps": "100"
+            }
+        
+        # Create fine-tuning job (conceptual - actual API may differ)
+        job_config = {
+            "jobName": job_name,
+            "baseModelIdentifier": base_model_id,
+            "trainingDataConfig": {
+                "s3Uri": training_data_uri
+            },
+            "outputDataConfig": {
+                "s3Uri": output_s3_uri
+            },
+            "hyperParameters": hyperparameters,
+            "roleArn": "arn:aws:iam::123456789012:role/BedrockFineTuningRole"  # Replace with actual role
+        }
+        
+        print(f"Creating fine-tuning job: {job_name}")
+        print(f"Base model: {base_model_id}")
+        print(f"Training data: {training_data_uri}")
+        
+        # In a real implementation, this would call the Bedrock API
+        # response = self.bedrock.create_model_customization_job(**job_config)
+        
+        # Simulated response
+        response = {
+            "jobArn": f"arn:aws:bedrock:us-east-1:123456789012:model-customization-job/{job_name}",
+            "status": "InProgress"
+        }
+        
+        return response
+    
+    def monitor_fine_tuning_job(self, job_name: str) -> Dict:
+        """Monitor the status of a fine-tuning job."""
+        # In real implementation:
+        # response = self.bedrock.get_model_customization_job(jobIdentifier=job_name)
+        
+        # Simulated monitoring
+        print(f"Monitoring job: {job_name}")
+        statuses = ["InProgress", "InProgress", "Completed"]
+        
+        for i, status in enumerate(statuses):
+            print(f"Status check {i+1}: {status}")
+            time.sleep(2)  # Simulate waiting
+            
+            if status == "Completed":
+                return {
+                    "status": status,
+                    "customModelArn": f"arn:aws:bedrock:us-east-1:123456789012:custom-model/{job_name}",
+                    "trainingMetrics": {
+                        "trainingLoss": 0.234,
+                        "validationLoss": 0.267
+                    }
+                }
+        
+        return {"status": "InProgress"}
+    
+    def deploy_custom_model(
+        self,
+        custom_model_arn: str,
+        model_name: str,
+        tags: Optional[Dict[str, str]] = None
+    ) -> Dict:
+        """Deploy a custom model for inference."""
+        print(f"Deploying custom model: {model_name}")
+        print(f"Model ARN: {custom_model_arn}")
+        
+        # In real implementation:
+        # response = self.bedrock.create_provisioned_model_throughput(
+        #     modelUnits=1,
+        #     provisionedModelName=model_name,
+        #     modelId=custom_model_arn,
+        #     tags=tags or {}
+        # )
+        
+        # Simulated response
+        return {
+            "provisionedModelArn": f"arn:aws:bedrock:us-east-1:123456789012:provisioned-model/{model_name}",
+            "status": "InService"
+        }
+    
+    def invoke_custom_model(
+        self,
+        model_id: str,
+        prompt: str,
+        context: str,
+        max_tokens: int = 200,
+        temperature: float = 0.7
+    ) -> str:
+        """Invoke a custom model for inference."""
+        # Format the input for RAG
+        formatted_prompt = (
+            f"Context: {context}\n\n"
+            f"Question: {prompt}\n\n"
+            "Answer:"
+        )
+        
+        request_body = {
+            "prompt": formatted_prompt,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": 0.9
+        }
+        
+        # In real implementation:
+        # response = self.bedrock_runtime.invoke_model(
+        #     modelId=model_id,
+        #     accept='application/json',
+        #     contentType='application/json',
+        #     body=json.dumps(request_body)
+        # )
+        
+        # Simulated response
+        return "Based on the provided context, [simulated custom model response]"
+    
+    def evaluate_custom_model(
+        self,
+        model_id: str,
+        test_examples: List[Dict[str, str]]
+    ) -> Dict[str, float]:
+        """Evaluate custom model performance."""
+        print(f"Evaluating custom model: {model_id}")
+        
+        correct = 0
+        total = len(test_examples)
+        
+        for example in test_examples:
+            response = self.invoke_custom_model(
+                model_id,
+                example['query'],
+                example.get('context', ''),
+                max_tokens=100
+            )
+            
+            # Simple evaluation - check if key terms are present
+            expected_terms = example['response'].lower().split()[:5]
+            response_lower = response.lower()
+            
+            if any(term in response_lower for term in expected_terms):
+                correct += 1
+        
+        accuracy = correct / total if total > 0 else 0
+        
+        return {
+            "accuracy": accuracy,
+            "total_examples": total,
+            "correct_predictions": correct
+        }
+
+# Example usage
+print("=== AWS Bedrock Custom Model Workflow ===")
+
+# Initialize manager
+manager = BedrockCustomModelManager()
+
+# Prepare sample training data
+training_data = create_medical_rag_examples()
+
+# Simulate the workflow (would require actual AWS setup)
+print("\n1. Preparing training data for Bedrock...")
+# s3_uri = manager.prepare_training_data_for_bedrock(
+#     training_data,
+#     s3_bucket="my-bedrock-bucket",
+#     s3_prefix="rag-finetuning"
+# )
+
+print("\n2. Creating fine-tuning job...")
+# job_response = manager.create_fine_tuning_job(
+#     job_name="medical-rag-model-v1",
+#     base_model_id="anthropic.claude-instant-v1",
+#     training_data_uri=s3_uri,
+#     output_s3_uri="s3://my-bedrock-bucket/model-output/"
+# )
+
+print("\n3. Monitoring job progress...")
+# status = manager.monitor_fine_tuning_job("medical-rag-model-v1")
+
+print("\n4. Deploying custom model...")
+# deploy_response = manager.deploy_custom_model(
+#     custom_model_arn=status['customModelArn'],
+#     model_name="medical-rag-production"
+# )
+
+print("\n5. Testing custom model...")
+test_query = "What are the side effects of antibiotics?"
+test_context = "Common antibiotic side effects include nausea, diarrhea, and allergic reactions."
+# response = manager.invoke_custom_model(
+#     "medical-rag-production",
+#     test_query,
+#     test_context
+# )
+# print(f"Response: {response}")
+#+end_src
+
+* Evaluation and Comparison
+
+#+begin_src python
+# Comprehensive evaluation framework
+class RAGFineTuningEvaluator:
+    """Evaluate fine-tuned models for RAG performance."""
+    
+    def __init__(self):
+        self.metrics = {}
+    
+    def evaluate_retrieval_improvement(
+        self,
+        base_embedder,
+        finetuned_embedder,
+        test_queries: List[str],
+        test_docs: List[str],
+        relevant_docs: List[List[int]]
+    ) -> Dict:
+        """Compare retrieval performance between base and fine-tuned models."""
+        results = {
+            "base_model": {},
+            "finetuned_model": {},
+            "improvement": {}
+        }
+        
+        for model_name, embedder in [("base_model", base_embedder), 
+                                     ("finetuned_model", finetuned_embedder)]:
+            # Encode
+            query_emb = embedder.encode(test_queries)
+            doc_emb = embedder.encode(test_docs)
+            
+            # Calculate similarities
+            similarities = np.dot(query_emb, doc_emb.T)
+            
+            # Metrics
+            recall_at_5 = 0
+            precision_at_5 = 0
+            mrr = 0
+            
+            for i, relevant in enumerate(relevant_docs):
+                top_5 = np.argsort(similarities[i])[-5:][::-1]
+                
+                # Recall@5
+                relevant_found = len(set(top_5) & set(relevant))
+                recall_at_5 += relevant_found / len(relevant)
+                
+                # Precision@5
+                precision_at_5 += relevant_found / 5
+                
+                # MRR
+                for rank, doc_id in enumerate(top_5):
+                    if doc_id in relevant:
+                        mrr += 1 / (rank + 1)
+                        break
+            
+            n = len(test_queries)
+            results[model_name] = {
+                "recall@5": recall_at_5 / n,
+                "precision@5": precision_at_5 / n,
+                "mrr": mrr / n
+            }
+        
+        # Calculate improvements
+        for metric in results["base_model"]:
+            base_val = results["base_model"][metric]
+            tuned_val = results["finetuned_model"][metric]
+            results["improvement"][metric] = ((tuned_val - base_val) / base_val) * 100
+        
+        return results
+    
+    def evaluate_generation_quality(
+        self,
+        base_llm,
+        finetuned_llm,
+        test_examples: List[Dict[str, str]],
+        metrics: List[str] = ["bleu", "rouge", "relevance"]
+    ) -> Dict:
+        """Compare generation quality between models."""
+        from rouge import Rouge
+        from nltk.translate.bleu_score import sentence_bleu
+        
+        rouge = Rouge()
+        results = {
+            "base_model": {metric: 0 for metric in metrics},
+            "finetuned_model": {metric: 0 for metric in metrics}
+        }
+        
+        for model_name, llm in [("base_model", base_llm), 
+                                ("finetuned_model", finetuned_llm)]:
+            for example in test_examples:
+                # Generate response
+                generated = llm.generate_rag_response(
+                    example['query'],
+                    example['context']
+                )
+                
+                reference = example['response']
+                
+                # BLEU score
+                if "bleu" in metrics:
+                    bleu = sentence_bleu(
+                        [reference.split()],
+                        generated.split(),
+                        weights=(0.25, 0.25, 0.25, 0.25)
+                    )
+                    results[model_name]["bleu"] += bleu
+                
+                # ROUGE scores
+                if "rouge" in metrics:
+                    scores = rouge.get_scores(generated, reference)[0]
+                    results[model_name]["rouge"] += scores['rouge-l']['f']
+                
+                # Relevance (simple keyword overlap)
+                if "relevance" in metrics:
+                    gen_words = set(generated.lower().split())
+                    ref_words = set(reference.lower().split())
+                    overlap = len(gen_words & ref_words) / len(ref_words)
+                    results[model_name]["relevance"] += overlap
+        
+        # Average scores
+        n = len(test_examples)
+        for model in results:
+            for metric in results[model]:
+                results[model][metric] /= n
+        
+        return results
+
+# Create evaluator
+evaluator = RAGFineTuningEvaluator()
+
+print("=== Fine-tuning Evaluation Framework ===")
+print("Metrics to evaluate:")
+print("- Retrieval: Recall@5, Precision@5, MRR")
+print("- Generation: BLEU, ROUGE-L, Relevance")
+print("\nThis framework helps determine if fine-tuning improves your specific use case.")
+#+end_src
+
+* Best Practices and Considerations
+
+#+begin_src python
+def print_finetuning_best_practices():
+    """Display best practices for fine-tuning in RAG systems."""
+    
+    best_practices = {
+        "When to Fine-tune": [
+            "Domain-specific terminology not in base model",
+            "Consistent underperformance on domain queries",
+            "Need for specific response formats",
+            "Sufficient high-quality training data (>1000 examples)"
+        ],
+        
+        "Data Quality": [
+            "Ensure diverse query types",
+            "Include hard negatives for embedding models",
+            "Balance positive and negative examples",
+            "Validate relevance judgments"
+        ],
+        
+        "Training Strategy": [
+            "Start with smaller models for experimentation",
+            "Use validation set to prevent overfitting",
+            "Monitor training metrics closely",
+            "Consider few-shot learning before full fine-tuning"
+        ],
+        
+        "Evaluation": [
+            "Test on held-out domain-specific data",
+            "Compare with strong baselines",
+            "Evaluate both retrieval and generation",
+            "Consider human evaluation for quality"
+        ],
+        
+        "Cost Considerations": [
+            "Fine-tuning compute costs",
+            "Inference may be more expensive",
+            "Storage for custom models",
+            "Maintenance and updates"
+        ]
+    }
+    
+    print("=== Fine-tuning Best Practices for RAG ===\n")
+    
+    for category, practices in best_practices.items():
+        print(f"{category}:")
+        for practice in practices:
+            print(f"  " {practice}")
+        print()
+
+print_finetuning_best_practices()
+
+# Cost-benefit analysis
+def calculate_finetuning_roi(
+    training_cost: float,
+    inference_cost_increase: float,
+    performance_improvement: float,
+    queries_per_month: int,
+    value_per_improved_query: float
+) -> Dict:
+    """Calculate ROI for fine-tuning investment."""
+    
+    monthly_additional_cost = inference_cost_increase * queries_per_month
+    monthly_value = performance_improvement * queries_per_month * value_per_improved_query
+    monthly_net = monthly_value - monthly_additional_cost
+    
+    # Assuming model is used for 12 months
+    total_cost = training_cost + (monthly_additional_cost * 12)
+    total_value = monthly_value * 12
+    roi = ((total_value - total_cost) / total_cost) * 100
+    
+    payback_months = training_cost / monthly_net if monthly_net > 0 else float('inf')
+    
+    return {
+        "training_cost": training_cost,
+        "monthly_additional_cost": monthly_additional_cost,
+        "monthly_value_generated": monthly_value,
+        "monthly_net_benefit": monthly_net,
+        "annual_roi_percent": roi,
+        "payback_period_months": payback_months
+    }
+
+# Example ROI calculation
+roi = calculate_finetuning_roi(
+    training_cost=500,  # $500 for fine-tuning
+    inference_cost_increase=0.0001,  # $0.0001 per query increase
+    performance_improvement=0.15,  # 15% improvement
+    queries_per_month=10000,
+    value_per_improved_query=0.10  # $0.10 value per improved response
+)
+
+print("\n=== Fine-tuning ROI Analysis ===")
+for metric, value in roi.items():
+    if metric == "payback_period_months":
+        print(f"{metric}: {value:.1f} months")
+    elif "percent" in metric:
+        print(f"{metric}: {value:.1f}%")
+    else:
+        print(f"{metric}: ${value:.2f}")
+#+end_src
+
+* Exercises
+
+1. **Domain-Specific Fine-tuning**: Create a fine-tuning dataset for your domain:
+   - Collect 100+ query-document pairs
+   - Create relevance judgments
+   - Prepare data for embedding fine-tuning
+
+2. **Embedding Model Comparison**: 
+   - Fine-tune a small embedding model on your data
+   - Compare retrieval metrics with base model
+   - Analyze which queries benefit most
+
+3. **LLM Response Adaptation**:
+   - Create 50 examples of ideal RAG responses
+   - Format for instruction tuning
+   - Identify response patterns to optimize
+
+4. **Cost-Benefit Analysis**:
+   - Estimate fine-tuning costs for your use case
+   - Project performance improvements
+   - Calculate ROI over 12 months
+
+5. **Advanced Implementation**:
+   - Implement continual learning for model updates
+   - Create A/B testing framework
+   - Build automated evaluation pipeline
+
+* Summary
+
+In this notebook, we covered:
+-  When and why to fine-tune models for RAG
+-  Data preparation for embedding and LLM fine-tuning
+-  Implementation of fine-tuning pipelines
+-  AWS Bedrock custom model integration
+-  Comprehensive evaluation frameworks
+-  Best practices and ROI analysis
+
+Key takeaways:
+1. Fine-tuning can significantly improve domain-specific performance
+2. Quality training data is crucial for success
+3. Start with embeddings before fine-tuning LLMs
+4. Always evaluate against strong baselines
+5. Consider costs vs. benefits before committing to fine-tuning

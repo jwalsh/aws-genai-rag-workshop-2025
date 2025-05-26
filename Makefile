@@ -95,6 +95,22 @@ run-sql-agent: ## Run the SQL agent demo
 calculate-costs: ## Calculate workshop costs
 	$(UV) run python -m src.utils.cost_calculator
 
+##@ Documentation
+
+presentation.pdf: presentation.org ## Generate presentation PDF from org file
+	@echo "Generating presentation PDF..."
+	@emacs --batch --eval "(require 'ox-beamer)" \
+		--eval "(find-file \"presentation.org\")" \
+		--eval "(org-beamer-export-to-pdf)"
+
+presentation.html: presentation.org ## Generate presentation HTML (standard HTML export)
+	@echo "Generating presentation HTML..."
+	@emacs --batch --eval "(require 'ox-html)" \
+		--eval "(find-file \"presentation.org\")" \
+		--eval "(org-html-export-to-html)"
+
+presentation-html: presentation.html ## Alias for presentation.html target
+
 ##@ Cleanup
 
 clean: ## Clean generated files and caches

@@ -1,0 +1,829 @@
+#+TITLE: Cost Analysis for AWS GenAI RAG Applications
+#+AUTHOR: aygp-dr
+#+DATE: 2025-05-26
+#+PROPERTY: header-args:python :results output :session *rag-cost* :mkdirp yes
+
+* Overview
+
+In this notebook, we'll explore the cost implications of running RAG applications on AWS, focusing on:
+- AWS Bedrock model pricing
+- Embedding costs vs. performance trade-offs
+- Storage costs (S3, vector databases)
+- Optimizing costs while maintaining quality
+
+* Learning Objectives
+
+By the end of this notebook, you will:
+- Understand AWS Bedrock pricing models
+- Calculate costs for different RAG pipeline configurations
+- Implement cost tracking and monitoring
+- Learn optimization strategies to reduce costs
+
+* Setup
+
+#+begin_src python :tangle ../src/utils/cost_calculator.py
+"""Cost calculator for AWS GenAI services."""
+from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
+import json
+import pandas as pd
+from datetime import datetime, timedelta
+
+@dataclass
+class ModelPricing:
+    """Pricing information for a model."""
+    model_id: str
+    input_price_per_1k_tokens: float
+    output_price_per_1k_tokens: float
+    region: str = "us-east-1"
+
+class AWSCostCalculator:
+    """Calculator for AWS GenAI service costs."""
+    
+    # AWS Bedrock pricing as of 2025-05
+    BEDROCK_PRICING = {
+        "anthropic.claude-3-opus-20240229": ModelPricing(
+            model_id="anthropic.claude-3-opus-20240229",
+            input_price_per_1k_tokens=0.015,
+            output_price_per_1k_tokens=0.075
+        ),
+        "anthropic.claude-3-sonnet-20240229": ModelPricing(
+            model_id="anthropic.claude-3-sonnet-20240229",
+            input_price_per_1k_tokens=0.003,
+            output_price_per_1k_tokens=0.015
+        ),
+        "anthropic.claude-3-haiku-20240307": ModelPricing(
+            model_id="anthropic.claude-3-haiku-20240307",
+            input_price_per_1k_tokens=0.00025,
+            output_price_per_1k_tokens=0.00125
+        ),
+        "amazon.titan-embed-text-v2:0": ModelPricing(
+            model_id="amazon.titan-embed-text-v2:0",
+            input_price_per_1k_tokens=0.0002,
+            output_price_per_1k_tokens=0.0  # Embeddings have no output
+        ),
+        "cohere.embed-english-v3": ModelPricing(
+            model_id="cohere.embed-english-v3",
+            input_price_per_1k_tokens=0.0001,
+            output_price_per_1k_tokens=0.0
+        )
+    }
+    
+    # Storage pricing
+    S3_STORAGE_PRICE_PER_GB = 0.023  # Standard storage
+    S3_REQUEST_PRICE = {
+        "PUT": 0.005 / 1000,  # per request
+        "GET": 0.0004 / 1000  # per request
+    }
+    
+    def __init__(self):
+        self.usage_history = []
+    
+    def estimate_tokens(self, text: str) -> int:
+        """Estimate token count for text (rough approximation)."""
+        # Rough estimate: ~4 characters per token
+        return len(text) // 4
+    
+    def calculate_llm_cost(
+        self,
+        model_id: str,
+        input_text: str,
+        output_text: str
+    ) -> Dict[str, float]:
+        """Calculate cost for LLM usage."""
+        if model_id not in self.BEDROCK_PRICING:
+            raise ValueError(f"Unknown model: {model_id}")
+        
+        pricing = self.BEDROCK_PRICING[model_id]
+        input_tokens = self.estimate_tokens(input_text)
+        output_tokens = self.estimate_tokens(output_text)
+        
+        input_cost = (input_tokens / 1000) * pricing.input_price_per_1k_tokens
+        output_cost = (output_tokens / 1000) * pricing.output_price_per_1k_tokens
+        
+        return {
+            "model_id": model_id,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "input_cost": input_cost,
+            "output_cost": output_cost,
+            "total_cost": input_cost + output_cost
+        }
+    
+    def calculate_embedding_cost(
+        self,
+        model_id: str,
+        texts: List[str]
+    ) -> Dict[str, float]:
+        """Calculate cost for embedding generation."""
+        if model_id not in self.BEDROCK_PRICING:
+            raise ValueError(f"Unknown embedding model: {model_id}")
+        
+        pricing = self.BEDROCK_PRICING[model_id]
+        total_tokens = sum(self.estimate_tokens(text) for text in texts)
+        
+        cost = (total_tokens / 1000) * pricing.input_price_per_1k_tokens
+        
+        return {
+            "model_id": model_id,
+            "num_texts": len(texts),
+            "total_tokens": total_tokens,
+            "total_cost": cost,
+            "cost_per_text": cost / len(texts) if texts else 0
+        }
+    
+    def calculate_storage_cost(
+        self,
+        storage_gb: float,
+        read_requests: int,
+        write_requests: int,
+        days: int = 30
+    ) -> Dict[str, float]:
+        """Calculate S3 storage costs."""
+        storage_cost = storage_gb * self.S3_STORAGE_PRICE_PER_GB * (days / 30)
+        read_cost = read_requests * self.S3_REQUEST_PRICE["GET"]
+        write_cost = write_requests * self.S3_REQUEST_PRICE["PUT"]
+        
+        return {
+            "storage_gb": storage_gb,
+            "storage_cost": storage_cost,
+            "read_requests": read_requests,
+            "read_cost": read_cost,
+            "write_requests": write_requests,
+            "write_cost": write_cost,
+            "total_cost": storage_cost + read_cost + write_cost
+        }
+    
+    def track_usage(self, usage_data: Dict):
+        """Track usage for monitoring."""
+        usage_data["timestamp"] = datetime.now().isoformat()
+        self.usage_history.append(usage_data)
+    
+    def get_usage_summary(self, days: int = 7) -> pd.DataFrame:
+        """Get usage summary for the last N days."""
+        if not self.usage_history:
+            return pd.DataFrame()
+        
+        df = pd.DataFrame(self.usage_history)
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        
+        # Filter to last N days
+        cutoff = datetime.now() - timedelta(days=days)
+        df = df[df['timestamp'] >= cutoff]
+        
+        return df
+#+end_src
+
+* Cost Analysis Examples
+
+** Example 1: Basic RAG Pipeline Cost Estimation
+
+Let's calculate the cost of a basic RAG pipeline processing 1000 documents.
+
+#+begin_src python
+# Initialize cost calculator
+calculator = AWSCostCalculator()
+
+# Scenario: Processing 1000 documents
+num_documents = 1000
+avg_doc_length = 500  # characters
+queries_per_day = 100
+
+# 1. Embedding generation cost (one-time)
+embedding_texts = ["Sample document " * 10] * num_documents
+embedding_cost = calculator.calculate_embedding_cost(
+    "amazon.titan-embed-text-v2:0",
+    embedding_texts
+)
+
+print("=== Embedding Generation Costs ===")
+print(f"Documents: {embedding_cost['num_texts']}")
+print(f"Total tokens: {embedding_cost['total_tokens']:,}")
+print(f"Total cost: ${embedding_cost['total_cost']:.4f}")
+print(f"Cost per document: ${embedding_cost['cost_per_text']:.6f}")
+
+# 2. Query processing cost (daily)
+query_text = "What is the main topic of the document?"
+retrieved_context = "This is a sample context " * 50  # ~200 tokens
+response_text = "The main topic is " * 20  # ~80 tokens
+
+query_cost = calculator.calculate_llm_cost(
+    "anthropic.claude-3-haiku-20240307",
+    query_text + retrieved_context,
+    response_text
+)
+
+print("\n=== Query Processing Costs (per query) ===")
+print(f"Input tokens: {query_cost['input_tokens']}")
+print(f"Output tokens: {query_cost['output_tokens']}")
+print(f"Cost per query: ${query_cost['total_cost']:.6f}")
+print(f"Daily cost ({queries_per_day} queries): ${query_cost['total_cost'] * queries_per_day:.4f}")
+print(f"Monthly cost: ${query_cost['total_cost'] * queries_per_day * 30:.2f}")
+
+# 3. Storage costs
+storage_gb = 0.1  # 100MB for embeddings and documents
+storage_cost = calculator.calculate_storage_cost(
+    storage_gb,
+    read_requests=queries_per_day * 10,  # 10 reads per query
+    write_requests=num_documents,
+    days=30
+)
+
+print("\n=== Storage Costs (monthly) ===")
+print(f"Storage size: {storage_gb} GB")
+print(f"Storage cost: ${storage_cost['storage_cost']:.4f}")
+print(f"Read cost: ${storage_cost['read_cost']:.4f}")
+print(f"Write cost: ${storage_cost['write_cost']:.4f}")
+print(f"Total storage cost: ${storage_cost['total_cost']:.4f}")
+
+# Total monthly cost
+total_monthly = (
+    embedding_cost['total_cost'] +  # One-time
+    query_cost['total_cost'] * queries_per_day * 30 +  # Daily queries
+    storage_cost['total_cost']  # Monthly storage
+)
+
+print(f"\n=== Total Monthly Cost ===")
+print(f"${total_monthly:.2f}")
+#+end_src
+
+** Example 2: Model Comparison for Cost Optimization
+
+#+begin_src python
+# Compare different models for the same task
+models_to_compare = [
+    "anthropic.claude-3-opus-20240229",
+    "anthropic.claude-3-sonnet-20240229",
+    "anthropic.claude-3-haiku-20240307"
+]
+
+# Same input/output for all models
+input_text = "Analyze this document: " + "Lorem ipsum " * 100
+output_text = "The analysis shows " * 50
+
+print("=== Model Cost Comparison ===")
+print(f"{'Model':<40} {'Input Cost':<12} {'Output Cost':<12} {'Total Cost':<12}")
+print("-" * 80)
+
+model_costs = []
+for model_id in models_to_compare:
+    cost = calculator.calculate_llm_cost(model_id, input_text, output_text)
+    model_costs.append(cost)
+    print(f"{model_id:<40} ${cost['input_cost']:<11.6f} ${cost['output_cost']:<11.6f} ${cost['total_cost']:<11.6f}")
+
+# Calculate relative costs
+base_cost = model_costs[-1]['total_cost']  # Haiku as baseline
+print("\n=== Relative Cost Analysis ===")
+for cost in model_costs:
+    relative = cost['total_cost'] / base_cost
+    print(f"{cost['model_id']}: {relative:.1f}x more expensive than Haiku")
+#+end_src
+
+** Example 3: Embedding Model Comparison
+
+#+begin_src python
+# Compare embedding models
+embedding_models = [
+    "amazon.titan-embed-text-v2:0",
+    "cohere.embed-english-v3"
+]
+
+# Sample documents to embed
+sample_docs = ["This is a sample document about AI and machine learning. " * 20] * 100
+
+print("=== Embedding Model Comparison ===")
+print(f"{'Model':<35} {'Cost per 1K docs':<20} {'Cost per 1M docs':<20}")
+print("-" * 75)
+
+for model_id in embedding_models:
+    cost = calculator.calculate_embedding_cost(model_id, sample_docs)
+    cost_per_1k = cost['total_cost'] * 10  # Scale to 1K
+    cost_per_1m = cost['total_cost'] * 10000  # Scale to 1M
+    print(f"{model_id:<35} ${cost_per_1k:<19.4f} ${cost_per_1m:<19.2f}")
+#+end_src
+
+* Cost Optimization Strategies
+
+** Strategy 1: Intelligent Caching
+
+#+begin_src python
+from collections import OrderedDict
+import hashlib
+
+class CostOptimizedRAG:
+    """RAG system with cost optimization features."""
+    
+    def __init__(self, calculator: AWSCostCalculator, cache_size: int = 1000):
+        self.calculator = calculator
+        self.cache = OrderedDict()
+        self.cache_size = cache_size
+        self.cache_hits = 0
+        self.cache_misses = 0
+    
+    def _get_cache_key(self, query: str, context: str) -> str:
+        """Generate cache key for query-context pair."""
+        combined = f"{query}|{context}"
+        return hashlib.md5(combined.encode()).hexdigest()
+    
+    def query_with_cache(
+        self,
+        query: str,
+        context: str,
+        model_id: str = "anthropic.claude-3-haiku-20240307"
+    ) -> Tuple[str, Dict[str, float]]:
+        """Query with caching to reduce costs."""
+        cache_key = self._get_cache_key(query, context)
+        
+        # Check cache
+        if cache_key in self.cache:
+            self.cache_hits += 1
+            # Move to end (LRU)
+            self.cache.move_to_end(cache_key)
+            return self.cache[cache_key], {"total_cost": 0.0, "cached": True}
+        
+        # Cache miss - perform actual query
+        self.cache_misses += 1
+        
+        # Simulate LLM response
+        response = f"Response to: {query[:50]}..."
+        cost = self.calculator.calculate_llm_cost(
+            model_id,
+            query + context,
+            response
+        )
+        
+        # Update cache
+        self.cache[cache_key] = response
+        if len(self.cache) > self.cache_size:
+            self.cache.popitem(last=False)  # Remove oldest
+        
+        cost["cached"] = False
+        return response, cost
+    
+    def get_cache_stats(self) -> Dict:
+        """Get cache statistics."""
+        total_requests = self.cache_hits + self.cache_misses
+        hit_rate = self.cache_hits / total_requests if total_requests > 0 else 0
+        
+        return {
+            "cache_hits": self.cache_hits,
+            "cache_misses": self.cache_misses,
+            "hit_rate": hit_rate,
+            "cache_size": len(self.cache),
+            "max_cache_size": self.cache_size
+        }
+
+# Demonstrate caching benefits
+rag = CostOptimizedRAG(calculator)
+
+# Simulate queries
+queries = [
+    "What is machine learning?",
+    "Explain deep learning",
+    "What is machine learning?",  # Duplicate
+    "How does NLP work?",
+    "What is machine learning?",  # Duplicate
+]
+
+total_cost_with_cache = 0
+total_cost_without_cache = 0
+
+print("=== Query Processing with Caching ===")
+for i, query in enumerate(queries):
+    context = "Context about AI and ML " * 50
+    response, cost = rag.query_with_cache(query, context)
+    
+    total_cost_with_cache += cost['total_cost']
+    
+    # Calculate cost without cache
+    if not cost.get('cached', False):
+        no_cache_cost = calculator.calculate_llm_cost(
+            "anthropic.claude-3-haiku-20240307",
+            query + context,
+            response
+        )
+        total_cost_without_cache += no_cache_cost['total_cost']
+    else:
+        # Would have cost the same as a regular query
+        total_cost_without_cache += calculator.calculate_llm_cost(
+            "anthropic.claude-3-haiku-20240307",
+            query + context,
+            "Simulated response"
+        )['total_cost']
+    
+    print(f"Query {i+1}: {'CACHED' if cost.get('cached') else 'PROCESSED'} - Cost: ${cost['total_cost']:.6f}")
+
+cache_stats = rag.get_cache_stats()
+print(f"\n=== Cache Statistics ===")
+print(f"Hit rate: {cache_stats['hit_rate']:.1%}")
+print(f"Total cost with cache: ${total_cost_with_cache:.6f}")
+print(f"Total cost without cache: ${total_cost_without_cache:.6f}")
+print(f"Savings: ${total_cost_without_cache - total_cost_with_cache:.6f} ({((total_cost_without_cache - total_cost_with_cache) / total_cost_without_cache * 100):.1f}%)")
+#+end_src
+
+** Strategy 2: Tiered Model Selection
+
+#+begin_src python
+class TieredModelSelector:
+    """Select appropriate model based on query complexity."""
+    
+    def __init__(self, calculator: AWSCostCalculator):
+        self.calculator = calculator
+        self.model_tiers = {
+            "simple": "anthropic.claude-3-haiku-20240307",
+            "moderate": "anthropic.claude-3-sonnet-20240229",
+            "complex": "anthropic.claude-3-opus-20240229"
+        }
+    
+    def classify_query_complexity(self, query: str) -> str:
+        """Classify query complexity (simplified heuristic)."""
+        query_lower = query.lower()
+        
+        # Simple heuristics
+        if any(word in query_lower for word in ['what is', 'define', 'list', 'name']):
+            return "simple"
+        elif any(word in query_lower for word in ['analyze', 'compare', 'explain how']):
+            return "moderate"
+        elif any(word in query_lower for word in ['synthesize', 'evaluate', 'design', 'create']):
+            return "complex"
+        else:
+            return "moderate"  # Default
+    
+    def select_model_and_estimate_cost(
+        self,
+        query: str,
+        context: str,
+        force_tier: Optional[str] = None
+    ) -> Dict:
+        """Select appropriate model and estimate cost."""
+        tier = force_tier or self.classify_query_complexity(query)
+        model_id = self.model_tiers[tier]
+        
+        # Estimate response length based on complexity
+        response_lengths = {
+            "simple": 50,
+            "moderate": 150,
+            "complex": 300
+        }
+        
+        estimated_response = "Response " * response_lengths[tier]
+        
+        cost = self.calculator.calculate_llm_cost(
+            model_id,
+            query + context,
+            estimated_response
+        )
+        
+        cost["tier"] = tier
+        cost["model_selected"] = model_id
+        
+        return cost
+
+# Test tiered selection
+selector = TieredModelSelector(calculator)
+
+test_queries = [
+    ("What is RAG?", "simple"),
+    ("Explain how RAG improves LLM responses", "moderate"),
+    ("Design a comprehensive RAG system with multiple retrieval strategies", "complex"),
+    ("List the components of RAG", "simple"),
+    ("Compare different embedding models for RAG", "moderate")
+]
+
+print("=== Tiered Model Selection ===")
+print(f"{'Query':<60} {'Detected Tier':<12} {'Model':<40} {'Cost':<10}")
+print("-" * 130)
+
+total_tiered_cost = 0
+total_premium_cost = 0
+
+for query, expected_tier in test_queries:
+    context = "Relevant context " * 30
+    
+    # Tiered selection
+    tiered_result = selector.select_model_and_estimate_cost(query, context)
+    total_tiered_cost += tiered_result['total_cost']
+    
+    # Premium model cost (always use Opus)
+    premium_result = selector.select_model_and_estimate_cost(query, context, force_tier="complex")
+    total_premium_cost += premium_result['total_cost']
+    
+    print(f"{query:<60} {tiered_result['tier']:<12} {tiered_result['model_selected']:<40} ${tiered_result['total_cost']:.6f}")
+
+print(f"\n=== Cost Comparison ===")
+print(f"Total cost with tiered selection: ${total_tiered_cost:.6f}")
+print(f"Total cost with premium model only: ${total_premium_cost:.6f}")
+print(f"Savings: ${total_premium_cost - total_tiered_cost:.6f} ({((total_premium_cost - total_tiered_cost) / total_premium_cost * 100):.1f}%)")
+#+end_src
+
+* Cost Monitoring Dashboard
+
+#+begin_src python
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+import numpy as np
+
+class CostMonitor:
+    """Monitor and visualize RAG system costs."""
+    
+    def __init__(self, calculator: AWSCostCalculator):
+        self.calculator = calculator
+    
+    def generate_sample_usage(self, days: int = 7) -> List[Dict]:
+        """Generate sample usage data for visualization."""
+        usage_data = []
+        base_date = datetime.now() - timedelta(days=days)
+        
+        for day in range(days):
+            date = base_date + timedelta(days=day)
+            
+            # Simulate varying usage patterns
+            queries = np.random.poisson(100)  # Average 100 queries/day
+            embeddings = np.random.poisson(50) if day % 3 == 0 else 0  # Batch processing
+            
+            # Track different model usage
+            for model, fraction in [
+                ("anthropic.claude-3-haiku-20240307", 0.7),
+                ("anthropic.claude-3-sonnet-20240229", 0.25),
+                ("anthropic.claude-3-opus-20240229", 0.05)
+            ]:
+                model_queries = int(queries * fraction)
+                if model_queries > 0:
+                    cost = self.calculator.calculate_llm_cost(
+                        model,
+                        "Sample query " * 20,
+                        "Sample response " * 10
+                    )
+                    
+                    usage_data.append({
+                        "date": date,
+                        "service": "bedrock_llm",
+                        "model": model,
+                        "queries": model_queries,
+                        "cost": cost['total_cost'] * model_queries
+                    })
+            
+            # Embedding costs
+            if embeddings > 0:
+                emb_cost = self.calculator.calculate_embedding_cost(
+                    "amazon.titan-embed-text-v2:0",
+                    ["Document " * 20] * embeddings
+                )
+                
+                usage_data.append({
+                    "date": date,
+                    "service": "bedrock_embedding",
+                    "model": "amazon.titan-embed-text-v2:0",
+                    "queries": embeddings,
+                    "cost": emb_cost['total_cost']
+                })
+        
+        return usage_data
+    
+    def plot_cost_breakdown(self, usage_data: List[Dict]):
+        """Create cost breakdown visualization."""
+        df = pd.DataFrame(usage_data)
+        
+        # Daily costs by service
+        daily_costs = df.groupby(['date', 'service'])['cost'].sum().unstack(fill_value=0)
+        
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+        
+        # Stacked bar chart
+        daily_costs.plot(kind='bar', stacked=True, ax=ax1)
+        ax1.set_title('Daily Cost Breakdown by Service')
+        ax1.set_xlabel('Date')
+        ax1.set_ylabel('Cost ($)')
+        ax1.legend(title='Service')
+        
+        # Pie chart of total costs by model
+        model_costs = df.groupby('model')['cost'].sum().sort_values(ascending=False)
+        ax2.pie(model_costs.values, labels=model_costs.index, autopct='%1.1f%%')
+        ax2.set_title('Total Cost Distribution by Model')
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # Print summary statistics
+        print("\n=== Cost Summary ===")
+        print(f"Total cost over {len(daily_costs)} days: ${df['cost'].sum():.2f}")
+        print(f"Average daily cost: ${df.groupby('date')['cost'].sum().mean():.2f}")
+        print(f"Peak daily cost: ${df.groupby('date')['cost'].sum().max():.2f}")
+        print("\nCost by model:")
+        for model, cost in model_costs.items():
+            print(f"  {model}: ${cost:.2f}")
+
+# Generate and visualize cost data
+monitor = CostMonitor(calculator)
+usage_data = monitor.generate_sample_usage(days=7)
+monitor.plot_cost_breakdown(usage_data)
+#+end_src
+
+* Best Practices for Cost Optimization
+
+** 1. Implement Request Batching
+
+#+begin_src python
+class BatchProcessor:
+    """Process requests in batches to optimize costs."""
+    
+    def __init__(self, calculator: AWSCostCalculator, batch_size: int = 10):
+        self.calculator = calculator
+        self.batch_size = batch_size
+        self.pending_requests = []
+    
+    def add_request(self, request_id: str, text: str):
+        """Add request to batch."""
+        self.pending_requests.append({
+            "id": request_id,
+            "text": text,
+            "timestamp": datetime.now()
+        })
+        
+        if len(self.pending_requests) >= self.batch_size:
+            return self.process_batch()
+        return None
+    
+    def process_batch(self) -> Dict:
+        """Process pending requests as a batch."""
+        if not self.pending_requests:
+            return {"processed": 0, "cost": 0}
+        
+        # Combine requests for batch processing
+        texts = [req["text"] for req in self.pending_requests]
+        
+        # Calculate embedding costs (batched)
+        batch_cost = self.calculator.calculate_embedding_cost(
+            "amazon.titan-embed-text-v2:0",
+            texts
+        )
+        
+        # Individual processing cost (for comparison)
+        individual_cost = sum(
+            self.calculator.calculate_embedding_cost(
+                "amazon.titan-embed-text-v2:0",
+                [text]
+            )["total_cost"]
+            for text in texts
+        )
+        
+        result = {
+            "processed": len(self.pending_requests),
+            "batch_cost": batch_cost["total_cost"],
+            "individual_cost": individual_cost,
+            "savings": individual_cost - batch_cost["total_cost"],
+            "requests": self.pending_requests.copy()
+        }
+        
+        self.pending_requests.clear()
+        return result
+
+# Demonstrate batching benefits
+batch_processor = BatchProcessor(calculator, batch_size=5)
+
+print("=== Batch Processing Example ===")
+for i in range(12):
+    result = batch_processor.add_request(f"req_{i}", f"Document {i} " * 50)
+    if result:
+        print(f"\nBatch processed: {result['processed']} requests")
+        print(f"Batch cost: ${result['batch_cost']:.6f}")
+        print(f"Individual cost would be: ${result['individual_cost']:.6f}")
+        print(f"Savings: ${result['savings']:.6f}")
+
+# Process remaining
+final_result = batch_processor.process_batch()
+if final_result['processed'] > 0:
+    print(f"\nFinal batch: {final_result['processed']} requests")
+    print(f"Cost: ${final_result['batch_cost']:.6f}")
+#+end_src
+
+** 2. Implement Cost Budgets and Alerts
+
+#+begin_src python
+class CostBudgetManager:
+    """Manage cost budgets and alerts."""
+    
+    def __init__(self, monthly_budget: float):
+        self.monthly_budget = monthly_budget
+        self.daily_budget = monthly_budget / 30
+        self.current_month_spend = 0
+        self.current_day_spend = 0
+        self.alerts = []
+    
+    def track_cost(self, cost: float, service: str):
+        """Track cost and check budget."""
+        self.current_month_spend += cost
+        self.current_day_spend += cost
+        
+        # Check thresholds
+        month_percent = (self.current_month_spend / self.monthly_budget) * 100
+        day_percent = (self.current_day_spend / self.daily_budget) * 100
+        
+        # Generate alerts
+        if day_percent > 100:
+            self.alerts.append({
+                "level": "WARNING",
+                "message": f"Daily budget exceeded: ${self.current_day_spend:.2f} / ${self.daily_budget:.2f}",
+                "timestamp": datetime.now()
+            })
+        
+        if month_percent > 80:
+            self.alerts.append({
+                "level": "WARNING",
+                "message": f"Monthly budget at {month_percent:.1f}%",
+                "timestamp": datetime.now()
+            })
+        
+        return {
+            "daily_usage": day_percent,
+            "monthly_usage": month_percent,
+            "within_budget": month_percent <= 100
+        }
+    
+    def get_budget_status(self) -> Dict:
+        """Get current budget status."""
+        days_in_month = 30
+        days_elapsed = datetime.now().day
+        expected_spend = (days_elapsed / days_in_month) * self.monthly_budget
+        
+        return {
+            "monthly_budget": self.monthly_budget,
+            "current_spend": self.current_month_spend,
+            "expected_spend": expected_spend,
+            "usage_percent": (self.current_month_spend / self.monthly_budget) * 100,
+            "on_track": self.current_month_spend <= expected_spend,
+            "projected_monthly": (self.current_month_spend / days_elapsed) * days_in_month if days_elapsed > 0 else 0,
+            "recent_alerts": self.alerts[-5:]  # Last 5 alerts
+        }
+
+# Example usage
+budget_manager = CostBudgetManager(monthly_budget=100.0)
+
+# Simulate daily usage
+print("=== Budget Monitoring Example ===")
+for day in range(5):
+    daily_cost = np.random.uniform(2, 5)  # $2-5 per day
+    
+    for _ in range(10):  # 10 requests per day
+        cost = daily_cost / 10
+        status = budget_manager.track_cost(cost, "bedrock_llm")
+    
+    print(f"\nDay {day + 1}:")
+    print(f"  Daily spend: ${budget_manager.current_day_spend:.2f}")
+    print(f"  Monthly total: ${budget_manager.current_month_spend:.2f}")
+    print(f"  Budget usage: {status['monthly_usage']:.1f}%")
+    
+    budget_manager.current_day_spend = 0  # Reset daily counter
+
+# Final status
+final_status = budget_manager.get_budget_status()
+print(f"\n=== Budget Status Report ===")
+print(f"Monthly budget: ${final_status['monthly_budget']:.2f}")
+print(f"Current spend: ${final_status['current_spend']:.2f}")
+print(f"Projected monthly: ${final_status['projected_monthly']:.2f}")
+print(f"On track: {'Yes' if final_status['on_track'] else 'No'}")
+
+if final_status['recent_alerts']:
+    print("\nRecent alerts:")
+    for alert in final_status['recent_alerts']:
+        print(f"  [{alert['level']}] {alert['message']}")
+#+end_src
+
+* Exercises
+
+1. **Cost Calculation Exercise**: Calculate the monthly cost for a RAG system that:
+   - Processes 10,000 new documents per month
+   - Handles 1,000 queries per day
+   - Uses Claude 3 Haiku for queries and Titan embeddings
+
+2. **Optimization Challenge**: Design a cost optimization strategy that:
+   - Reduces costs by at least 30%
+   - Maintains response quality
+   - Implements at least 3 optimization techniques
+
+3. **Budget Planning**: Create a budget plan for a startup that:
+   - Has a $500/month budget for GenAI services
+   - Needs to support 500 daily active users
+   - Requires both search and Q&A capabilities
+
+4. **Advanced Implementation**: Extend the cost calculator to:
+   - Support custom pricing tiers
+   - Track costs across multiple AWS accounts
+   - Generate weekly cost reports
+   - Implement predictive cost forecasting
+
+* Summary
+
+In this notebook, we covered:
+-  AWS Bedrock pricing models and cost calculation
+-  Cost comparison between different models
+-  Optimization strategies (caching, tiering, batching)
+-  Budget management and monitoring
+-  Best practices for cost-effective RAG systems
+
+Key takeaways:
+1. Model selection has the biggest impact on costs
+2. Caching can reduce costs by 30-50% for repeated queries
+3. Tiered model selection balances cost and quality
+4. Batch processing reduces per-unit costs
+5. Proactive monitoring prevents budget overruns
