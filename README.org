@@ -34,31 +34,31 @@ make run-rag-pipeline
 
 ** Workshop Modules
 
-*** Module 1: RAG Basics (=notebooks/01_rag_basics.org=)
+*** Module 1: RAG Basics ([[file:notebooks/01_rag_basics.org][notebooks/01_rag_basics.org]])
 - Document chunking strategies
 - Embedding generation with Bedrock
 - Vector storage and retrieval
 - Basic RAG pipeline implementation
 
-*** Module 2: Advanced RAG (=notebooks/02_advanced_rag.org=)
+*** Module 2: Advanced RAG ([[file:notebooks/02_advanced_rag.org][notebooks/02_advanced_rag.org]])
 - Reranking for improved relevance
 - Hybrid search (keyword + semantic)
 - RAG evaluation metrics
 - Query expansion techniques
 
-*** Module 3: Text-to-SQL (=notebooks/03_text_to_sql.org=)
+*** Module 3: Text-to-SQL ([[file:notebooks/03_text_to_sql.org][notebooks/03_text_to_sql.org]])
 - Natural language database queries
 - SQL agent with Bedrock
 - Schema understanding
 - Query optimization
 
-*** Module 4: Fine-Tuning (=notebooks/04_fine_tuning.org=)
+*** Module 4: Fine-Tuning ([[file:notebooks/04_fine_tuning.org][notebooks/04_fine_tuning.org]])
 - SageMaker integration
 - Domain-specific model adaptation
 - Training data preparation
 - Deployment strategies
 
-*** Module 5: Cost Analysis (=notebooks/05_cost_analysis.org=)
+*** Module 5: Cost Analysis ([[file:notebooks/05_cost_analysis.org][notebooks/05_cost_analysis.org]])
 - AWS pricing calculator integration
 - Cost optimization strategies
 - Resource monitoring
