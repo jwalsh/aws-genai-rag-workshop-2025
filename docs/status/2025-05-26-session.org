@@ -1,0 +1,174 @@
+#+TITLE: Session Status: 2025-05-26
+#+AUTHOR: Jason Walsh
+#+EMAIL: j@wal.sh
+#+DATE: 2025-05-26
+
+* Session Overview
+
+| Tool     | Claude Code (claude.ai/code) |
+| Model    | claude-opus-4-20250514       |
+| Duration | ~2 hours                     |
+| Tokens   | ~6M ($14.50)                 |
+
+* Timeline
+
+** Initial Setup (16:30)
+- Created AWS GenAI RAG Workshop repository structure
+- Set up initial project files with =init-repo.sh=
+- Configured GitHub repository with description and topics
+- *Issue*: GPG signing failed, resolved with =--no-gpg-sign=
+
+** Documentation Phase (16:45)
+- Created CLAUDE.org with development commands and architecture
+- Added workshop-focused README.org 
+- Set up contributor guidelines (CONTRIBUTING.org)
+- Added security policy (SECURITY.org)
+- Added MIT license
+
+** Environment Configuration (17:00)
+- Created =.envrc= for direnv support
+- Enhanced =.env.example= with API keys placeholders
+- Set up automatic virtual environment activation
+- Added support for Anthropic and OpenAI API keys
+
+** Build System Improvements (17:15)
+- Created =make-support.el= for Emacs operations
+- Simplified Makefile with glob patterns
+- Moved complex operations to =scripts/=
+- Set up README.md generation from README.org
+- *Issue*: Initial pandoc approach replaced with Emacs ox-md
+
+** Workshop Content (17:30)
+- Created comprehensive Module 1: RAG Basics notebook
+- Started Module 2: Advanced RAG notebook
+- Implemented proper =:tangle= support for code extraction
+- Added exercises and examples
+
+** Project Management (17:35)
+- Created GitHub labels (workshop-content, infrastructure, testing)
+- Created 6 tracking issues:
+  - [[https://github.com/jwalsh/aws-genai-rag-workshop-2025/issues/2][#2: Module 1 - RAG Basics]]
+  - [[https://github.com/jwalsh/aws-genai-rag-workshop-2025/issues/3][#3: Module 2 - Advanced RAG]]
+  - [[https://github.com/jwalsh/aws-genai-rag-workshop-2025/issues/4][#4: Module 3 - Text-to-SQL]]
+  - [[https://github.com/jwalsh/aws-genai-rag-workshop-2025/issues/5][#5: Module 4 - Fine-tuning]]
+  - [[https://github.com/jwalsh/aws-genai-rag-workshop-2025/issues/6][#6: Module 5 - Cost Analysis]]
+  - [[https://github.com/jwalsh/aws-genai-rag-workshop-2025/issues/7][#7: LocalStack validation]]
+- *Issue*: Docker not running (noted in issue creation output)
+- *Issue*: AWS credentials not configured (noted in output)
+
+** Visual Assets & Prompts (17:45)
+- Added workshop banner image (1024x243)
+- Created =prompts/= directory with comprehensive collection
+- Documented image generation prompt
+- Added prompts for RAG, SQL, evaluation, etc.
+
+** Quality Assurance (17:50)
+- Created review prompts for notebooks and code
+- Added Claude =/review= command
+- Set up quality checklists
+- Documented review process
+
+* Issues Encountered
+
+** GPG Signing
+- *Problem*: Git commits failed with GPG signing enabled
+- *Solution*: Use =--no-gpg-sign= flag
+- *Impact*: Minor workflow adjustment
+
+** Docker Daemon
+- *Problem*: LocalStack commands failed due to Docker not running
+- *Impact*: Unable to test LocalStack setup during session
+- *TODO*: Ensure Docker Desktop is running before workshop
+
+** AWS Credentials
+- *Problem*: Missing =~/.aws/credentials= file
+- *Impact*: AWS CLI commands would fail
+- *TODO*: Document AWS CLI setup requirements
+
+** README Generation
+- *Problem*: Pandoc dependency was problematic
+- *Solution*: Switched to Emacs ox-md for Org to Markdown conversion
+- *Impact*: Simplified dependencies
+
+* Implementation Notes
+
+** Architecture Decisions
+- Used org-mode for all documentation (better for literate programming)
+- Tangle outputs to subdirectories matching notebook names
+- LocalStack for complete local development experience
+- Comprehensive make targets for all operations
+
+** Code Organization
+#+begin_src
+src/          # Core implementation code
+notebooks/    # Workshop modules in org format
+prompts/      # All prompts used in workshop
+scripts/      # Supporting shell scripts
+.claude/      # Claude-specific configurations
+#+end_src
+
+** Key Features Implemented
+- Automatic environment setup with direnv
+- Comprehensive RAG pipeline example
+- Advanced techniques (reranking, hybrid search)
+- Proper error handling patterns
+- Cost tracking capabilities
+- Security best practices
+
+** Testing Strategy
+- Unit tests in =tests/=
+- LocalStack for integration testing
+- Notebook validation through tangle
+- Linting with ruff and org-lint
+
+* Next Steps
+
+1. Complete notebooks 03-05
+2. Test LocalStack setup with Docker running
+3. Create sample data for workshops
+4. Implement core RAG pipeline in =src/=
+5. Add integration tests
+6. Create video walkthroughs
+7. Test with real AWS services
+
+* Session Metrics
+
+| Metric               | Value              |
+|----------------------+--------------------|
+| Files Created        | 30+                |
+| Lines of Code        | ~2000              |
+| Documentation Pages  | 15+                |
+| GitHub Issues        | 6                  |
+| Commits              | 10                 |
+| Cost (Opus-4)        | $14.50             |
+| Cost (Haiku)         | $0.31              |
+| Total Cost           | $14.81             |
+
+* Recommendations
+
+** Pre-workshop Setup
+- Automated environment checker script
+- Docker and AWS CLI validation
+- Dependency installation verification
+
+** Content Improvements
+- Add more visual diagrams
+- Include performance benchmarks
+- Add troubleshooting videos
+
+** Testing
+- Automated notebook testing
+- End-to-end workshop validation
+- Load testing for concurrent users
+
+* Tools Used
+
+| Category         | Tool                    |
+|------------------+-------------------------|
+| IDE              | Claude Code (Anthropic) |
+| Version Control  | Git/GitHub              |
+| Languages        | Python, Bash, Elisp     |
+| Documentation    | Org-mode                |
+| Container        | Docker (LocalStack)     |
+| Package Manager  | uv                      |
+| Testing          | pytest, ruff, mypy      |

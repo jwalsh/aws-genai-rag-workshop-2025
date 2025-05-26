@@ -1,0 +1,66 @@
+#+TITLE: Workshop Development Status
+#+AUTHOR: Jason Walsh
+#+EMAIL: j@wal.sh
+
+* Overview
+
+This directory contains session logs and status updates for the AWS GenAI RAG Workshop development.
+
+* Session History
+
+| Date       | Model                  | Duration | Major Accomplishments                          | Issues                              |
+|------------+------------------------+----------+------------------------------------------------+-------------------------------------|
+| 2025-05-26 | claude-opus-4-20250514 | ~2 hours | Initial setup, docs, 2 notebooks, GitHub issues | Docker not running, AWS creds missing |
+
+* Progress Tracker
+
+** Notebooks
+- [X] Module 1: RAG Basics (01_rag_basics.org) - Complete with tangle support
+- [X] Module 2: Advanced RAG (02_advanced_rag.org) - Started, needs completion
+- [ ] Module 3: Text-to-SQL (03_text_to_sql.org)
+- [ ] Module 4: Fine-Tuning (04_fine_tuning.org)
+- [ ] Module 5: Cost Analysis (05_cost_analysis.org)
+
+** Infrastructure
+- [X] Repository structure
+- [X] GitHub setup with issues
+- [X] Development environment (direnv, uv)
+- [X] Documentation framework
+- [ ] LocalStack validation
+- [ ] CI/CD pipeline
+- [ ] Automated testing
+
+** Code Implementation
+- [ ] Core RAG pipeline (src/rag/)
+- [ ] SQL agent (src/agents/)
+- [ ] Guardrails (src/guardrails/)
+- [ ] Cost calculator (src/utils/)
+- [ ] Integration tests
+- [ ] Performance benchmarks
+
+* Critical Path Items
+
+1. *LocalStack Testing* - Blocked by Docker
+2. *Complete Notebooks 3-5* - Required for workshop
+3. *Implement Core Code* - src/ modules need implementation
+4. *Integration Tests* - Validate end-to-end functionality
+
+* Resource Usage
+
+| Metric       | Value                  |
+|--------------+------------------------|
+| Total tokens | ~6M                    |
+| Total cost   | ~$14.50                |
+| Primary model | claude-opus-4-20250514 |
+
+* Next Session Priorities
+
+1. Ensure Docker is running
+2. Configure AWS credentials
+3. Test LocalStack setup
+4. Complete remaining notebooks
+5. Implement core RAG pipeline
+
+* Session Logs
+
+- [[file:2025-05-26-session.md][2025-05-26 Session]] - Initial workshop setup
