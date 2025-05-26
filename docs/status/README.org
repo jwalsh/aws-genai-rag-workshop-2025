@@ -63,4 +63,4 @@ This directory contains session logs and status updates for the AWS GenAI RAG Wo
 
 * Session Logs
 
-- [[file:2025-05-26-session.md][2025-05-26 Session]] - Initial workshop setup
+- [[file:2025-05-26-session.org][2025-05-26 Session]] - Initial workshop setup
