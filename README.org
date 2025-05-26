@@ -2,6 +2,8 @@
 #+AUTHOR: Jason Walsh
 #+EMAIL: j@wal.sh
 
+[[file:assets/images/rag-architecture-banner.jpeg]]
+
 * Welcome to the AWS GenAI RAG Workshop!
 
 This hands-on workshop guides you through building production-ready Retrieval Augmented Generation (RAG) systems using AWS services. You'll work with Amazon Bedrock, SageMaker, and supporting services to implement advanced RAG patterns.

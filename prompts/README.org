@@ -1,0 +1,196 @@
+#+TITLE: Workshop Prompts Collection
+#+AUTHOR: Jason Walsh
+#+EMAIL: j@wal.sh
+
+* Overview
+
+This directory contains all prompts used throughout the AWS GenAI RAG Workshop, including:
+- Image generation prompts for documentation
+- LLM prompts for RAG examples
+- System prompts for agents
+- Evaluation prompts
+
+* Image Generation Prompts
+
+** Header Banner Image
+File: [[file:header-image.txt][header-image.txt]]
+
+Purpose: Main banner image for README and workshop materials showing RAG architecture visualization.
+
+* RAG System Prompts
+
+** Basic RAG Query Template
+#+BEGIN_SRC text :tangle rag-basic-query.txt
+Given the following context information, answer the user's question accurately and concisely.
+If the context doesn't contain enough information to answer the question, say so.
+
+Context:
+{context}
+
+Question: {question}
+
+Answer:
+#+END_SRC
+
+** Advanced RAG with Citations
+#+BEGIN_SRC text :tangle rag-advanced-query.txt
+You are a helpful AI assistant with access to a knowledge base. Answer the user's question based on the provided context.
+
+Instructions:
+1. Use ONLY information from the provided context
+2. Include citations using [1], [2], etc. format
+3. If information is insufficient, state that clearly
+4. Be concise but comprehensive
+
+Context Documents:
+{contexts}
+
+Question: {question}
+
+Answer (with citations):
+#+END_SRC
+
+* SQL Agent Prompts
+
+** Natural Language to SQL
+#+BEGIN_SRC text :tangle nl2sql-prompt.txt
+You are an expert SQL query generator. Convert the natural language question into a valid SQL query.
+
+Database Schema:
+{schema}
+
+Important Rules:
+- Use only tables and columns that exist in the schema
+- Always use proper JOIN conditions
+- Include appropriate WHERE clauses for filtering
+- Use aggregate functions when asking for counts, sums, or averages
+- Return only the SQL query, no explanations
+
+Question: {question}
+
+SQL Query:
+#+END_SRC
+
+** SQL Error Recovery
+#+BEGIN_SRC text :tangle sql-error-recovery.txt
+The previous SQL query resulted in an error. Please analyze the error and provide a corrected query.
+
+Original Query:
+{original_query}
+
+Error Message:
+{error_message}
+
+Database Schema:
+{schema}
+
+Provide a corrected SQL query:
+#+END_SRC
+
+* Evaluation Prompts
+
+** RAG Answer Quality Assessment
+#+BEGIN_SRC text :tangle rag-evaluation.txt
+Evaluate the quality of the AI assistant's answer based on the following criteria:
+
+Question: {question}
+Context Provided: {context}
+Assistant's Answer: {answer}
+Reference Answer: {reference}
+
+Evaluation Criteria:
+1. Accuracy: Does the answer correctly reflect information from the context?
+2. Completeness: Does it address all aspects of the question?
+3. Relevance: Is the answer focused on what was asked?
+4. Grounding: Does it only use information from the provided context?
+
+Provide scores (1-5) for each criterion and a brief justification.
+#+END_SRC
+
+* Fine-Tuning Prompts
+
+** Domain-Specific RAG Template
+#+BEGIN_SRC text :tangle domain-rag-template.txt
+<|system|>
+You are an AWS cloud architecture expert. Answer questions using the provided AWS documentation context.
+Always cite specific AWS services and features when relevant.
+<|end|>
+
+<|user|>
+Context: {context}
+Question: {question}
+<|end|>
+
+<|assistant|>
+{answer}
+<|end|>
+#+END_SRC
+
+* Cost Analysis Prompts
+
+** Cost Estimation Query
+#+BEGIN_SRC text :tangle cost-estimation.txt
+Based on the following AWS service usage, calculate the estimated monthly cost:
+
+Services Used:
+{services}
+
+Usage Details:
+{usage_details}
+
+Region: {region}
+
+Provide:
+1. Itemized cost breakdown
+2. Total monthly estimate
+3. Cost optimization suggestions
+4. Comparison with on-demand vs reserved pricing
+#+END_SRC
+
+* Guardrail Prompts
+
+** Content Safety Check
+#+BEGIN_SRC text :tangle safety-check.txt
+Analyze the following text for potential safety concerns:
+
+Text: {text}
+
+Check for:
+1. Personal Identifiable Information (PII)
+2. Inappropriate content
+3. Security credentials or secrets
+4. Misleading or harmful information
+
+Response format:
+- Safe: true/false
+- Concerns: [list any identified issues]
+- Recommended action: allow/block/redact
+#+END_SRC
+
+* Usage Instructions
+
+To use these prompts in your code:
+
+#+BEGIN_SRC python
+from pathlib import Path
+
+def load_prompt(prompt_name: str) -> str:
+    """Load a prompt template from the prompts directory."""
+    prompt_path = Path("prompts") / f"{prompt_name}.txt"
+    return prompt_path.read_text()
+
+# Example usage
+rag_prompt = load_prompt("rag-basic-query")
+formatted_prompt = rag_prompt.format(
+    context="Your retrieved documents here",
+    question="User's question here"
+)
+#+END_SRC
+
+* Best Practices
+
+1. **Version Control**: Track prompt changes as they significantly impact model behavior
+2. **Testing**: Always test prompts with edge cases
+3. **Documentation**: Document the purpose and expected behavior of each prompt
+4. **Formatting**: Use clear delimiters and consistent formatting
+5. **Safety**: Include safety instructions in production prompts
