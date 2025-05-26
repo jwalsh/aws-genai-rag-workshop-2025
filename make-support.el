@@ -16,27 +16,31 @@
          (org-dir (file-name-directory org-file))
          (target-dir (expand-file-name base-name org-dir)))
     
-    ;; Create target directory
+    ;; Create target directory without prompting
     (make-directory target-dir t)
     
-    ;; Tangle with modified default directory
+    ;; Tangle with modified default directory and suppress prompts
     (let ((default-directory target-dir)
           (org-babel-tangle-use-relative-file-links t)
-          (org-src-preserve-indentation t))
+          (org-src-preserve-indentation t)
+          (org-confirm-babel-evaluate nil)
+          (org-babel-confirm-evaluate-answer-no t))
       (org-babel-tangle-file (expand-file-name org-file)))))
 
 (defun batch-org-tangle ()
   "Tangle org files from command line arguments."
-  (let ((files command-line-args-left))
+  (let ((files command-line-args-left)
+        (org-confirm-babel-evaluate nil)
+        (org-babel-confirm-evaluate-answer-no t))
     (dolist (file files)
       (when (file-exists-p file)
         (message "Tangling %s..." file)
         (condition-case err
             (let ((tangled-files (org-tangle-to-subdirectory file)))
               (if tangled-files
-                  (message "  Tangled %d files" (length tangled-files))
-                (message "  No files to tangle")))
-          (error (message "  Error: %s" (error-message-string err))))))))
+                  (message "Tangled %d code blocks from %s" (length tangled-files) file)
+                (message "Tangled 0 code blocks from %s" file)))
+          (error (message "Error tangling %s: %s" file (error-message-string err))))))))
 
 (defun batch-org-lint ()
   "Lint org files from command line arguments."

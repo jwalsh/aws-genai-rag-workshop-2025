@@ -46,7 +46,7 @@ print(f"  Embedding model: {EMBEDDING_MODEL}")
 Let's implement a simple document chunker that splits text into overlapping chunks.
 
 #+BEGIN_SRC python :tangle chunking.py
-from typing import List
+from typing import List, Dict, Any
 
 class SimpleChunker:
     """A simple document chunker with overlapping windows."""
@@ -55,7 +55,7 @@ class SimpleChunker:
         self.chunk_size = chunk_size
         self.overlap = overlap
     
-    def chunk_text(self, text: str) -> List[Dict[str, any]]:
+    def chunk_text(self, text: str) -> List[Dict[str, Any]]:
         """Split text into overlapping chunks."""
         chunks = []
         start = 0
