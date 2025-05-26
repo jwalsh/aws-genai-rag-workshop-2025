@@ -1,0 +1,52 @@
+Verify the workshop repository is complete and ready for participants:
+
+## Repository Structure
+- [ ] All 5 notebook modules present (01-05)
+- [ ] Each notebook has corresponding tangled code
+- [ ] Source code organized in src/ with proper packages
+- [ ] Tests exist for core functionality
+- [ ] Documentation files (README, CONTRIBUTING, SECURITY)
+
+## Development Environment
+- [ ] .envrc configures environment correctly
+- [ ] .env.example has all required variables
+- [ ] Requirements specified in pyproject.toml
+- [ ] Makefile targets all work
+- [ ] LocalStack configuration tested
+
+## Workshop Content
+- [ ] Module progression is logical
+- [ ] Prerequisites clearly stated
+- [ ] Each module builds on previous
+- [ ] Exercises increase in difficulty
+- [ ] Solutions are derivable from content
+
+## Code Quality
+- [ ] All code passes linting (make lint)
+- [ ] Type hints used consistently
+- [ ] Docstrings on all public functions
+- [ ] No hardcoded credentials
+- [ ] Error handling implemented
+
+## AWS Integration
+- [ ] LocalStack services initialize correctly
+- [ ] Cost estimates provided
+- [ ] Both local and cloud paths documented
+- [ ] Security best practices followed
+- [ ] Resource cleanup documented
+
+## Testing
+- [ ] Unit tests pass (make test)
+- [ ] Integration tests with LocalStack
+- [ ] Notebook code blocks execute
+- [ ] Tangle output runs successfully
+- [ ] End-to-end RAG pipeline works
+
+## Documentation
+- [ ] README has all key information
+- [ ] Workshop details and calendar link
+- [ ] Clear setup instructions
+- [ ] Troubleshooting section helpful
+- [ ] All links work correctly
+
+Report any missing items or issues found.

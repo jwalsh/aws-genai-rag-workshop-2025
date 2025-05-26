@@ -1,0 +1,46 @@
+Perform a comprehensive review of the Python code with focus on:
+
+1. **Code Structure**:
+   - Proper module organization
+   - Clear separation of concerns
+   - Appropriate use of classes vs functions
+   - Logical file organization
+
+2. **Best Practices**:
+   - PEP 8 compliance (use `make lint` results)
+   - Type hints on all public functions
+   - Comprehensive docstrings
+   - Meaningful variable names
+   - DRY principle adherence
+
+3. **Error Handling**:
+   - Try/except blocks where appropriate
+   - Graceful degradation
+   - Informative error messages
+   - Proper logging instead of print statements
+
+4. **AWS Integration**:
+   - Proper use of boto3 clients
+   - Error handling for AWS API calls
+   - Support for both LocalStack and real AWS
+   - Credential management best practices
+
+5. **Testing**:
+   - Unit tests exist for core functionality
+   - Integration tests for AWS services
+   - Mock usage for external dependencies
+   - Edge cases covered
+
+6. **Performance**:
+   - Efficient algorithms used
+   - Batch operations where possible
+   - Resource cleanup (connections, files)
+   - Memory-efficient data handling
+
+7. **Security**:
+   - No hardcoded secrets
+   - Input validation
+   - SQL injection prevention
+   - Safe file operations
+
+Provide actionable feedback with specific examples and suggested improvements.

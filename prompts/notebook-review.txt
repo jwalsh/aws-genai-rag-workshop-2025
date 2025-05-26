@@ -1,0 +1,40 @@
+Review the provided workshop notebook and ensure it meets the following criteria:
+
+1. **Tangle Support**:
+   - All code blocks have `:tangle` directive with appropriate filenames
+   - Code blocks are organized into logical files (setup.py, main components, etc.)
+   - The `:tangle yes` property is set in the header
+
+2. **Code Quality**:
+   - Python code follows PEP 8 style guidelines
+   - Functions have docstrings
+   - Type hints are used where appropriate
+   - Error handling is implemented
+   - No hardcoded credentials or secrets
+
+3. **Workshop Flow**:
+   - Clear introduction explaining the module's objectives
+   - Progressive complexity from basic to advanced
+   - Each code block is explained before presentation
+   - Expected outputs are documented
+   - Dependencies between code blocks are clear
+
+4. **Exercises**:
+   - At least 3-4 exercises per module
+   - Clear instructions for each exercise
+   - Starter code provided where helpful
+   - Solutions can be derived from the content
+
+5. **AWS Integration**:
+   - LocalStack compatibility verified
+   - AWS service usage is documented
+   - Cost implications are mentioned
+   - Both local and cloud execution paths are covered
+
+6. **Documentation**:
+   - Module summary at the end
+   - Link to next module
+   - Key takeaways listed
+   - Additional resources provided
+
+Please provide specific feedback on any areas that need improvement.

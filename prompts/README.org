@@ -187,6 +187,23 @@ formatted_prompt = rag_prompt.format(
 )
 #+END_SRC
 
+* Workshop Development Prompts
+
+** Notebook Review
+File: [[file:notebook-review.txt][notebook-review.txt]]
+
+Purpose: Comprehensive review checklist for workshop notebooks ensuring quality and completeness.
+
+** Python Code Review  
+File: [[file:python-code-review.txt][python-code-review.txt]]
+
+Purpose: Detailed code review criteria for Python modules in the workshop.
+
+** Workshop Completeness Check
+File: [[file:workshop-completeness-check.txt][workshop-completeness-check.txt]]
+
+Purpose: Final checklist to ensure the workshop is ready for participants.
+
 * Best Practices
 
 1. **Version Control**: Track prompt changes as they significantly impact model behavior
