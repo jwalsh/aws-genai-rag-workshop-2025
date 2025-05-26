@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter/Org
+.ipynb_checkpoints/
+*.ipynb
+!notebooks/*.ipynb
+*.org_archive
+.org-id-locations
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# LocalStack
+localstack/volume/
+
+# Environment
+.env
+.env.local
+*.log
+
+# Data
+data/
+*.db
+*.sqlite
+
+# Models
+models/
+*.pkl
+*.h5
+*.pt
+*.safetensors
+
+# AWS
+.aws/
