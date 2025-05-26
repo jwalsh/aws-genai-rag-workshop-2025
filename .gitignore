@@ -27,6 +27,9 @@ htmlcov/
 *.org_archive
 .org-id-locations
 
+# Tangled output directories
+notebooks/*/
+
 # IDEs
 .vscode/
 .idea/

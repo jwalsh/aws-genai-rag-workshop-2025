@@ -6,6 +6,12 @@
 
 This hands-on workshop guides you through building production-ready Retrieval Augmented Generation (RAG) systems using AWS services. You'll work with Amazon Bedrock, SageMaker, and supporting services to implement advanced RAG patterns.
 
+** Workshop Details
+
+📅 *Date*: May 29, 2025 (8:30 AM - 5:30 PM EDT)
+📍 *Location*: Amazon Office (BOS21) Room 4.102, Boston, MA
+📆 *Add to Calendar*: [[https://calendar.google.com/calendar/render?action=TEMPLATE&text=Building%20Production-Ready%20Advanced%20Gen%20AI%20Applications%3A%20From%20Concept%20to%20Implementation&dates=20250529T123000Z/20250529T213000Z&details=Learn%20how%20to%20build%20high-performance%20RAG%20and%20agents%20with%20best%20practices%20from%20industry%20experts.%0A%0AThis%20advanced%20hands-on%20workshop%20uses%20state-of-the-art%20large%20language%20models%20in%20Amazon%20Bedrock%20and%20Amazon%20SageMaker%20AI.%0A%0ALearning%20Objectives%3A%0A%E2%80%A2%20Implement%20a%20RAG%20pipeline%0A%E2%80%A2%20Improve%20accuracy%20with%20re-ranking%20and%20agents%2C%20safety%20with%20guardrails%0A%E2%80%A2%20Fine%20tune%20LLMs%20and%20model%20distillation%0A%E2%80%A2%20Implement%20natural%20language%20text-to-SQL%20agent%0A%E2%80%A2%20Calculate%20total%20costs%20and%20ROI%0A%0ASpeakers%3A%0A%E2%80%A2%20Ravi%20Menon%2C%20Sr.%20GenAI%2FML%20Solution%20Architect%2C%20AWS%0A%E2%80%A2%20Dheeraj%20Hegde%2C%20Sr.%20GenAI%2FML%20Solution%20Architect%2C%20AWS%0A%E2%80%A2%20Prasad%20Prabhu%2C%20Principal%20GenAI%2FML%20GTM%20Specialist%2C%20AWS%0A%E2%80%A2%20Andrew%20Evans%2C%20Director%20AI%20%26%20Machine%20Learning%2C%20phData%0A%0ATarget%20Audience%3A%20Developers%2C%20Software%20engineers%2C%20Dev%20Managers%2C%20Data%20Scientists%2C%20AI%2FML%20Engineers%2C%20AI%2FML%20Architects%2C%20Engineering%20Managers%20and%20Directors%2C%20and%20CTOs%20who%20are%20building%20GenAI%20applications%20and%20already%20have%20basic%20understanding%20of%20RAG%20concepts.&location=Amazon%20Office%20(BOS21)%20Room%204.102%2C%2055%20Pier%204%20Boulevard%2C%20Boston%2C%20MA%2002210&ctz=America/New_York][Google Calendar]]
+
 ** Prerequisites
 
 - Python 3.11+

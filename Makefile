@@ -66,12 +66,9 @@ py-lint: ## Run Python linting with ruff
 
 org-lint: ## Run Org-mode linting with Emacs
 	@echo "Running org-lint on all .org files..."
-	@find . -name "*.org" -not -path "./.tmp/*" -not -path "./.support/*" | while read -r file; do \
-		echo "Linting $$file..."; \
-		emacs --batch --eval "(require 'org)" --eval "(setq org-lint-ignore-cache t)" \
-			--eval "(with-current-buffer (find-file-noselect \"$$file\") (org-lint))" 2>&1 | \
-			grep -v "^Loading" | grep -v "^Checking" || true; \
-	done
+	@find . -maxdepth 2 -name "*.org" -not -path "./.tmp/*" -not -path "./.support/*" | \
+		xargs emacs --batch -l make-support.el -f batch-org-lint 2>&1 | \
+		grep -v "^Loading"
 
 format: ## Format code with black and ruff
 	$(UV) run black src/ tests/
@@ -85,11 +82,15 @@ typecheck: ## Run type checking with mypy
 notebook: ## Start Jupyter notebook server
 	$(UV) run jupyter notebook notebooks/
 
-convert-notebooks: ## Convert org notebooks to Python scripts
-	@for file in notebooks/*.org; do \
-		echo "Converting $$file..."; \
-		emacs --batch --eval "(require 'org)" --eval "(org-babel-tangle-file \"$$file\")"; \
-	done
+convert-notebooks: ## Convert org notebooks to Python scripts (deprecated, use 'make tangle')
+	@echo "This target is deprecated. Please use 'make tangle' instead."
+	@$(MAKE) tangle
+
+tangle: ## Extract code from org notebooks into subdirectories
+	@echo "Tangling code from org notebooks..."
+	@find . -maxdepth 2 -name "*.org" -not -path "./.tmp/*" -not -path "./.support/*" | \
+		xargs emacs --batch -l make-support.el -f batch-org-tangle 2>&1 | \
+		grep -v "^Loading"
 
 ##@ Workshop
 

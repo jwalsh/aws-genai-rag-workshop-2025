@@ -1,0 +1,385 @@
+#+TITLE: Module 1: RAG Basics
+#+AUTHOR: Jason Walsh
+#+EMAIL: j@wal.sh
+#+PROPERTY: header-args:python :tangle yes :results output
+
+* Introduction to RAG
+
+Retrieval Augmented Generation (RAG) combines the power of large language models with external knowledge bases to provide more accurate, up-to-date, and verifiable responses.
+
+** Key Components
+
+1. *Document Processing*: Breaking down documents into manageable chunks
+2. *Embeddings*: Converting text into vector representations
+3. *Vector Storage*: Storing and indexing embeddings for fast retrieval
+4. *Retrieval*: Finding relevant context for user queries
+5. *Generation*: Using LLMs to synthesize responses
+
+* Setup and Configuration
+
+First, let's set up our environment and import necessary libraries.
+
+#+BEGIN_SRC python :tangle setup.py
+import os
+import boto3
+from typing import List, Dict, Optional
+import numpy as np
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configuration
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "512"))
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "50"))
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+AWS_ENDPOINT_URL = os.getenv("AWS_ENDPOINT_URL", "http://localhost:4566")
+
+print(f"Configuration loaded:")
+print(f"  Chunk size: {CHUNK_SIZE}")
+print(f"  Chunk overlap: {CHUNK_OVERLAP}")
+print(f"  Embedding model: {EMBEDDING_MODEL}")
+#+END_SRC
+
+* Document Chunking
+
+Let's implement a simple document chunker that splits text into overlapping chunks.
+
+#+BEGIN_SRC python :tangle chunking.py
+from typing import List
+
+class SimpleChunker:
+    """A simple document chunker with overlapping windows."""
+    
+    def __init__(self, chunk_size: int = 512, overlap: int = 50):
+        self.chunk_size = chunk_size
+        self.overlap = overlap
+    
+    def chunk_text(self, text: str) -> List[Dict[str, any]]:
+        """Split text into overlapping chunks."""
+        chunks = []
+        start = 0
+        text_length = len(text)
+        
+        while start < text_length:
+            end = min(start + self.chunk_size, text_length)
+            chunk_text = text[start:end]
+            
+            chunks.append({
+                'text': chunk_text,
+                'start': start,
+                'end': end,
+                'index': len(chunks)
+            })
+            
+            # Move to next chunk with overlap
+            start += (self.chunk_size - self.overlap)
+        
+        return chunks
+
+# Example usage
+if __name__ == "__main__":
+    sample_text = "This is a sample document. " * 50  # Create a longer text
+    chunker = SimpleChunker(chunk_size=100, overlap=20)
+    chunks = chunker.chunk_text(sample_text)
+    
+    print(f"Created {len(chunks)} chunks")
+    for i, chunk in enumerate(chunks[:3]):  # Show first 3 chunks
+        print(f"\nChunk {i}:")
+        print(f"  Text: {chunk['text'][:50]}...")
+        print(f"  Position: {chunk['start']}-{chunk['end']}")
+#+END_SRC
+
+* Generating Embeddings
+
+Now let's create embeddings for our text chunks using a local model.
+
+#+BEGIN_SRC python :tangle embeddings.py
+from sentence_transformers import SentenceTransformer
+import numpy as np
+from typing import List, Union
+
+class EmbeddingGenerator:
+    """Generate embeddings using sentence transformers."""
+    
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+        self.model = SentenceTransformer(model_name)
+        self.dimension = self.model.get_sentence_embedding_dimension()
+    
+    def generate(self, texts: Union[str, List[str]]) -> np.ndarray:
+        """Generate embeddings for text or list of texts."""
+        if isinstance(texts, str):
+            texts = [texts]
+        
+        embeddings = self.model.encode(texts, convert_to_numpy=True)
+        return embeddings
+    
+    def similarity(self, embedding1: np.ndarray, embedding2: np.ndarray) -> float:
+        """Calculate cosine similarity between two embeddings."""
+        dot_product = np.dot(embedding1, embedding2)
+        norm1 = np.linalg.norm(embedding1)
+        norm2 = np.linalg.norm(embedding2)
+        return dot_product / (norm1 * norm2)
+
+# Example usage
+if __name__ == "__main__":
+    generator = EmbeddingGenerator()
+    
+    # Generate embeddings for sample texts
+    texts = [
+        "What is machine learning?",
+        "Machine learning is a subset of artificial intelligence.",
+        "The weather is nice today."
+    ]
+    
+    embeddings = generator.generate(texts)
+    print(f"Embedding dimension: {generator.dimension}")
+    print(f"Generated {len(embeddings)} embeddings")
+    
+    # Calculate similarities
+    for i in range(len(texts)):
+        for j in range(i+1, len(texts)):
+            sim = generator.similarity(embeddings[i], embeddings[j])
+            print(f"\nSimilarity between:")
+            print(f"  '{texts[i]}'")
+            print(f"  '{texts[j]}'")
+            print(f"  Score: {sim:.4f}")
+#+END_SRC
+
+* Vector Storage with FAISS
+
+Let's implement a simple vector store using FAISS for efficient similarity search.
+
+#+BEGIN_SRC python :tangle vector_store.py
+import faiss
+import numpy as np
+import pickle
+from typing import List, Tuple, Dict, Optional
+
+class FAISSVectorStore:
+    """Simple FAISS-based vector store for similarity search."""
+    
+    def __init__(self, dimension: int):
+        self.dimension = dimension
+        self.index = faiss.IndexFlatL2(dimension)
+        self.documents = []
+        self.metadata = []
+    
+    def add(self, embeddings: np.ndarray, documents: List[str], 
+            metadata: Optional[List[Dict]] = None):
+        """Add embeddings and associated documents to the store."""
+        if embeddings.shape[1] != self.dimension:
+            raise ValueError(f"Embedding dimension {embeddings.shape[1]} != {self.dimension}")
+        
+        # Add to FAISS index
+        self.index.add(embeddings.astype('float32'))
+        
+        # Store documents and metadata
+        self.documents.extend(documents)
+        if metadata:
+            self.metadata.extend(metadata)
+        else:
+            self.metadata.extend([{}] * len(documents))
+    
+    def search(self, query_embedding: np.ndarray, k: int = 5) -> List[Tuple[int, float, str]]:
+        """Search for k most similar documents."""
+        query_embedding = query_embedding.reshape(1, -1).astype('float32')
+        distances, indices = self.index.search(query_embedding, k)
+        
+        results = []
+        for i, (idx, dist) in enumerate(zip(indices[0], distances[0])):
+            if idx < len(self.documents):
+                results.append({
+                    'index': int(idx),
+                    'distance': float(dist),
+                    'document': self.documents[idx],
+                    'metadata': self.metadata[idx]
+                })
+        
+        return results
+    
+    def save(self, path: str):
+        """Save the vector store to disk."""
+        with open(f"{path}_data.pkl", 'wb') as f:
+            pickle.dump({
+                'documents': self.documents,
+                'metadata': self.metadata,
+                'dimension': self.dimension
+            }, f)
+        faiss.write_index(self.index, f"{path}_index.faiss")
+    
+    def load(self, path: str):
+        """Load the vector store from disk."""
+        with open(f"{path}_data.pkl", 'rb') as f:
+            data = pickle.load(f)
+            self.documents = data['documents']
+            self.metadata = data['metadata']
+            self.dimension = data['dimension']
+        self.index = faiss.read_index(f"{path}_index.faiss")
+
+# Example usage
+if __name__ == "__main__":
+    from embeddings import EmbeddingGenerator
+    
+    # Create vector store
+    generator = EmbeddingGenerator()
+    vector_store = FAISSVectorStore(dimension=generator.dimension)
+    
+    # Add some documents
+    documents = [
+        "Python is a high-level programming language.",
+        "Machine learning enables computers to learn from data.",
+        "Natural language processing deals with text analysis.",
+        "Deep learning uses neural networks with multiple layers.",
+        "AWS provides cloud computing services."
+    ]
+    
+    embeddings = generator.generate(documents)
+    vector_store.add(embeddings, documents)
+    
+    # Search for similar documents
+    query = "What is artificial intelligence?"
+    query_embedding = generator.generate(query)
+    
+    results = vector_store.search(query_embedding[0], k=3)
+    
+    print(f"Query: {query}\n")
+    print("Top 3 similar documents:")
+    for result in results:
+        print(f"\n- Document: {result['document']}")
+        print(f"  Distance: {result['distance']:.4f}")
+#+END_SRC
+
+* Building a Simple RAG Pipeline
+
+Now let's combine all components into a simple RAG pipeline.
+
+#+BEGIN_SRC python :tangle rag_pipeline.py
+import os
+from typing import List, Dict, Optional
+from chunking import SimpleChunker
+from embeddings import EmbeddingGenerator
+from vector_store import FAISSVectorStore
+
+class SimpleRAGPipeline:
+    """A simple RAG pipeline for demonstration."""
+    
+    def __init__(self, 
+                 chunk_size: int = 512,
+                 chunk_overlap: int = 50,
+                 embedding_model: str = "all-MiniLM-L6-v2"):
+        self.chunker = SimpleChunker(chunk_size, chunk_overlap)
+        self.embedder = EmbeddingGenerator(embedding_model)
+        self.vector_store = FAISSVectorStore(self.embedder.dimension)
+        self.documents_processed = 0
+    
+    def add_document(self, text: str, metadata: Optional[Dict] = None):
+        """Process and add a document to the pipeline."""
+        # Chunk the document
+        chunks = self.chunker.chunk_text(text)
+        
+        # Extract text from chunks
+        chunk_texts = [chunk['text'] for chunk in chunks]
+        
+        # Generate embeddings
+        embeddings = self.embedder.generate(chunk_texts)
+        
+        # Add to vector store
+        chunk_metadata = []
+        for chunk in chunks:
+            meta = metadata.copy() if metadata else {}
+            meta.update({
+                'chunk_index': chunk['index'],
+                'start': chunk['start'],
+                'end': chunk['end'],
+                'doc_id': self.documents_processed
+            })
+            chunk_metadata.append(meta)
+        
+        self.vector_store.add(embeddings, chunk_texts, chunk_metadata)
+        self.documents_processed += 1
+    
+    def retrieve(self, query: str, k: int = 5) -> List[Dict]:
+        """Retrieve relevant context for a query."""
+        # Generate query embedding
+        query_embedding = self.embedder.generate(query)[0]
+        
+        # Search vector store
+        results = self.vector_store.search(query_embedding, k)
+        
+        return results
+    
+    def generate_response(self, query: str, k: int = 5) -> str:
+        """Generate a response using retrieved context."""
+        # Retrieve relevant context
+        contexts = self.retrieve(query, k)
+        
+        # In a real implementation, this would use an LLM
+        # For now, we'll just return the retrieved contexts
+        response = f"Query: {query}\n\n"
+        response += "Retrieved contexts:\n"
+        for i, ctx in enumerate(contexts):
+            response += f"\n{i+1}. {ctx['document'][:100]}...\n"
+            response += f"   (Distance: {ctx['distance']:.4f})\n"
+        
+        return response
+
+# Example usage
+if __name__ == "__main__":
+    # Create RAG pipeline
+    rag = SimpleRAGPipeline()
+    
+    # Add some documents
+    documents = [
+        """Amazon Web Services (AWS) is a subsidiary of Amazon that provides 
+        on-demand cloud computing platforms and APIs to individuals, companies, 
+        and governments, on a metered pay-as-you-go basis.""",
+        
+        """Machine learning is a subset of artificial intelligence that enables 
+        systems to learn and improve from experience without being explicitly 
+        programmed. It focuses on developing algorithms that can access data 
+        and use it to learn for themselves.""",
+        
+        """Retrieval Augmented Generation (RAG) is a technique that combines 
+        large language models with information retrieval systems. It allows 
+        models to access external knowledge bases to provide more accurate 
+        and up-to-date responses."""
+    ]
+    
+    for doc in documents:
+        rag.add_document(doc)
+    
+    # Test queries
+    queries = [
+        "What is AWS?",
+        "Explain machine learning",
+        "How does RAG work?"
+    ]
+    
+    for query in queries:
+        print("="*50)
+        response = rag.generate_response(query, k=2)
+        print(response)
+#+END_SRC
+
+* Exercises
+
+** Exercise 1: Implement Semantic Chunking
+Modify the chunker to split on sentence boundaries instead of fixed character counts.
+
+** Exercise 2: Add Metadata Filtering
+Enhance the vector store to filter results based on metadata before returning.
+
+** Exercise 3: Integrate with AWS Bedrock
+Replace the local embedding model with Amazon Bedrock's Titan Embeddings.
+
+* Summary
+
+In this module, we've built a basic RAG system from scratch:
+
+1. Document chunking for processing large texts
+2. Embedding generation for semantic representation
+3. Vector storage for efficient similarity search
+4. A simple pipeline that combines these components
+
+Next module: [[file:02_advanced_rag.org][Advanced RAG Techniques]]
