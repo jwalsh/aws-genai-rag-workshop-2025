@@ -144,6 +144,16 @@ scripts/      # Supporting shell scripts
 | Cost (Haiku)         | $0.31              |
 | Total Cost           | $14.81             |
 
+** Session Activity Visualization
+
+[[file:2025-05-26-graphana.png]]
+
+The Grafana dashboard shows the session activity timeline, including:
+- Token usage over time
+- API call patterns
+- Cost accumulation
+- Model switching between Opus-4 and Haiku
+
 * Recommendations
 
 ** Pre-workshop Setup
