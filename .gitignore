@@ -60,3 +60,6 @@ models/
 
 # AWS
 .aws/
+
+# Generated files
+README.md

@@ -1,0 +1,123 @@
+#+TITLE: Contributing to AWS GenAI RAG Workshop
+#+AUTHOR: Jason Walsh
+#+EMAIL: j@wal.sh
+
+* Contributing Guidelines
+
+We welcome contributions to the AWS GenAI RAG Workshop! This document provides guidelines for contributing to the project.
+
+** Getting Started
+
+1. Fork the repository
+2. Clone your fork: =git clone https://github.com/YOUR_USERNAME/aws-genai-rag-workshop-2025.git=
+3. Add the upstream remote: =git remote add upstream https://github.com/jwalsh/aws-genai-rag-workshop-2025.git=
+4. Create a branch: =git checkout -b feature/your-feature-name=
+
+** Development Setup
+
+#+BEGIN_SRC shell
+# Enable direnv
+direnv allow
+
+# Install dependencies
+make dev-install
+
+# Start LocalStack
+make localstack-up
+
+# Run tests
+make test
+#+END_SRC
+
+** Code Standards
+
+*** Python Code
+- Follow PEP 8 style guide
+- Use type hints for function signatures
+- Add docstrings to all public functions
+- Run =make format= before committing
+- Ensure =make lint= passes
+
+*** Commit Messages
+We use [[https://www.conventionalcommits.org/][Conventional Commits]]:
+
+- =feat:= New features
+- =fix:= Bug fixes
+- =docs:= Documentation changes
+- =chore:= Maintenance tasks
+- =test:= Test additions or modifications
+- =refactor:= Code refactoring
+
+Examples:
+#+BEGIN_SRC
+feat: add hybrid search to RAG pipeline
+fix: correct embedding dimension mismatch
+docs: update README with new AWS CLI examples
+#+END_SRC
+
+** Testing
+
+*** Running Tests
+#+BEGIN_SRC shell
+# All tests
+make test
+
+# Specific test file
+pytest tests/test_rag.py
+
+# With coverage
+make test-cov
+#+END_SRC
+
+*** Writing Tests
+- Place tests in =tests/= directory
+- Name test files =test_*.py=
+- Use descriptive test names
+- Mock AWS services with moto or LocalStack
+
+** Pull Request Process
+
+1. Update documentation for any new features
+2. Add tests for new functionality
+3. Ensure all tests pass: =make test=
+4. Verify code quality: =make lint format=
+5. Update CHANGELOG.org if applicable
+6. Submit PR with clear description
+
+** Workshop Content
+
+When contributing workshop materials:
+
+1. Follow the existing notebook structure
+2. Include executable code examples
+3. Provide expected outputs
+4. Add cost estimates for AWS operations
+5. Test all code with LocalStack first
+
+** Areas for Contribution
+
+*** High Priority
+- Additional RAG evaluation metrics
+- More chunking strategies
+- Multi-modal RAG examples
+- Performance benchmarks
+
+*** Documentation
+- Troubleshooting guides
+- Architecture diagrams
+- Video tutorials
+- Translation to other languages
+
+*** Code
+- New retrieval algorithms
+- Additional guardrails
+- Cost optimization utilities
+- Integration tests
+
+** Questions?
+
+- Open an issue for bugs or feature requests
+- Use discussions for questions
+- Contact maintainers for guidance
+
+Thank you for contributing! 🚀

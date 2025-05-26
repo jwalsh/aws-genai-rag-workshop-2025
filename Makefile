@@ -4,6 +4,24 @@
 
 PYTHON := python3
 UV := uv
+PANDOC := pandoc
+
+# File dependencies
+README.md: README.org
+	@echo "Generating README.md from README.org..."
+	@if command -v $(PANDOC) >/dev/null 2>&1; then \
+		$(PANDOC) -f org -t gfm -o $@ $<; \
+	else \
+		echo "Warning: pandoc not found, creating simple README.md"; \
+		echo "# AWS GenAI RAG Workshop 2025" > $@; \
+		echo "" >> $@; \
+		echo "This project requires pandoc to generate the full README.md from README.org." >> $@; \
+		echo "Install pandoc or view README.org directly." >> $@; \
+	fi
+
+.venv: README.md
+	@echo "Creating virtual environment with uv..."
+	$(UV) venv
 
 help: ## Show this help message
 	@echo "AWS GenAI RAG Workshop - Available targets:"
@@ -11,11 +29,11 @@ help: ## Show this help message
 
 ##@ Setup
 
-install: ## Install production dependencies with uv
+install: .venv ## Install production dependencies with uv
 	$(UV) pip sync
 	$(UV) pip install -e .
 
-dev-install: ## Install all dependencies including dev tools
+dev-install: .venv ## Install all dependencies including dev tools
 	$(UV) pip install -e ".[dev,sagemaker]"
 
 ##@ LocalStack
@@ -41,8 +59,19 @@ test: ## Run tests with pytest
 test-cov: ## Run tests with coverage
 	$(UV) run pytest tests/ --cov=src --cov-report=html --cov-report=term
 
-lint: ## Run linting with ruff
+lint: py-lint org-lint ## Run all linting (Python and Org-mode)
+
+py-lint: ## Run Python linting with ruff
 	$(UV) run ruff check src/ tests/
+
+org-lint: ## Run Org-mode linting with Emacs
+	@echo "Running org-lint on all .org files..."
+	@find . -name "*.org" -not -path "./.tmp/*" -not -path "./.support/*" | while read -r file; do \
+		echo "Linting $$file..."; \
+		emacs --batch --eval "(require 'org)" --eval "(setq org-lint-ignore-cache t)" \
+			--eval "(with-current-buffer (find-file-noselect \"$$file\") (org-lint))" 2>&1 | \
+			grep -v "^Loading" | grep -v "^Checking" || true; \
+	done
 
 format: ## Format code with black and ruff
 	$(UV) run black src/ tests/
