@@ -20,6 +20,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "awscli-local>=0.22.0",
     "localstack>=3.5.0",
+    "psycopg2-binary>=2.9.0",
 ]
 
 [project.optional-dependencies]

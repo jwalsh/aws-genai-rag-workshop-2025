@@ -1,0 +1,941 @@
+#+TITLE: Module 3: Text-to-SQL with Natural Language Database Queries
+#+AUTHOR: Jason Walsh
+#+EMAIL: j@wal.sh
+#+PROPERTY: header-args:python :tangle yes :results output :session text-to-sql
+
+* Introduction to Text-to-SQL
+
+Text-to-SQL is the task of converting natural language questions into SQL queries. This enables non-technical users to query databases using plain English, making data more accessible across organizations.
+
+** Key Components
+
+1. *Database Schema Understanding*: Extract and represent table structures
+2. *Natural Language Processing*: Parse user intent from questions
+3. *SQL Generation*: Convert intent to valid SQL queries
+4. *Query Validation*: Ensure generated queries are safe and syntactically correct
+5. *Result Interpretation*: Present results in user-friendly formats
+
+** Use Cases
+
+- Business analysts querying sales data
+- Customer support accessing user information
+- Executives getting quick insights from company metrics
+- Data exploration without SQL knowledge
+
+* Environment Setup
+
+Let's start by setting up our environment and importing necessary libraries.
+
+#+BEGIN_SRC python :tangle setup.py
+import os
+import sys
+import json
+import logging
+import psycopg2
+import boto3
+import pandas as pd
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timedelta
+from decimal import Decimal
+
+# Add src to path for imports
+sys.path.append('../src')
+
+from agents.sql_agent import SQLAgent, QueryResult, DatabaseIntrospector
+from utils.aws_client import get_aws_client
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Configuration
+DB_CONFIG = {
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'port': int(os.getenv('DB_PORT', '5432')),
+    'database': os.getenv('DB_NAME', 'workshop_db'),
+    'user': os.getenv('DB_USER', 'workshop_user'),
+    'password': os.getenv('DB_PASSWORD', 'workshop_pass')
+}
+
+AWS_ENDPOINT_URL = os.getenv('AWS_ENDPOINT_URL', 'http://localhost:4566')
+AWS_REGION = os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
+
+print("Text-to-SQL Workshop Environment")
+print("=" * 40)
+print(f"Database: {DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}")
+print(f"AWS Endpoint: {AWS_ENDPOINT_URL}")
+print(f"AWS Region: {AWS_REGION}")
+#+END_SRC
+
+* Database Schema Exploration
+
+Before we can convert natural language to SQL, we need to understand our database structure.
+
+#+BEGIN_SRC python :tangle schema_exploration.py
+def explore_database_schema():
+    """Explore and document the database schema."""
+    try:
+        # Initialize database introspector
+        introspector = DatabaseIntrospector(DB_CONFIG)
+        schema_info = introspector.get_schema_info('workshop')
+        
+        print("=� Database Schema Analysis")
+        print("=" * 50)
+        
+        for table_name, table_info in schema_info.items():
+            print(f"\n=9 Table: {table_name}")
+            print(f"   Columns: {len(table_info.columns)}")
+            
+            # Display columns with types
+            print("   =� Columns:")
+            for col in table_info.columns:
+                nullable_str = "NULL" if col['nullable'] else "NOT NULL"
+                default_str = f" DEFAULT {col['default']}" if col['default'] else ""
+                print(f"      " {col['name']} ({col['type']}) {nullable_str}{default_str}")
+            
+            # Display foreign key relationships
+            if table_info.foreign_keys:
+                print("   = Foreign Key Relationships:")
+                for fk in table_info.foreign_keys:
+                    print(f"      " {fk['column']} � {fk['references_table']}.{fk['references_column']}")
+        
+        return schema_info
+        
+    except Exception as e:
+        logger.error(f"Error exploring schema: {e}")
+        return None
+
+# Run schema exploration
+schema_info = explore_database_schema()
+#+END_SRC
+
+* Sample Data Analysis
+
+Let's examine the sample data to understand the content and relationships.
+
+#+BEGIN_SRC python :tangle data_analysis.py
+def analyze_sample_data():
+    """Analyze sample data in the database."""
+    try:
+        with psycopg2.connect(**DB_CONFIG) as conn:
+            # Sample queries to understand the data
+            queries = {
+                "Customer Count": "SELECT COUNT(*) as total_customers FROM workshop.customers",
+                "Product Categories": """
+                    SELECT category, COUNT(*) as product_count, 
+                           AVG(price) as avg_price
+                    FROM workshop.products 
+                    GROUP BY category 
+                    ORDER BY product_count DESC
+                """,
+                "Order Status Distribution": """
+                    SELECT status, COUNT(*) as order_count,
+                           SUM(total_amount) as total_revenue
+                    FROM workshop.orders 
+                    GROUP BY status
+                """,
+                "Top Customers by Revenue": """
+                    SELECT c.first_name, c.last_name, c.email,
+                           COUNT(o.order_id) as total_orders,
+                           SUM(o.total_amount) as total_spent
+                    FROM workshop.customers c
+                    JOIN workshop.orders o ON c.customer_id = o.customer_id
+                    GROUP BY c.customer_id, c.first_name, c.last_name, c.email
+                    ORDER BY total_spent DESC
+                    LIMIT 5
+                """,
+                "Recent Orders": """
+                    SELECT o.order_id, c.first_name, c.last_name,
+                           o.order_date, o.total_amount, o.status
+                    FROM workshop.orders o
+                    JOIN workshop.customers c ON o.customer_id = c.customer_id
+                    ORDER BY o.order_date DESC
+                    LIMIT 5
+                """
+            }
+            
+            print("=� Sample Data Analysis")
+            print("=" * 50)
+            
+            with conn.cursor() as cursor:
+                for query_name, query in queries.items():
+                    print(f"\n= {query_name}:")
+                    cursor.execute(query)
+                    
+                    # Get column names
+                    columns = [desc[0] for desc in cursor.description]
+                    rows = cursor.fetchall()
+                    
+                    # Display results in a formatted way
+                    if rows:
+                        # Create a simple table format
+                        print("   " + " | ".join(f"{col:>15}" for col in columns))
+                        print("   " + "-" * (len(columns) * 18 - 3))
+                        
+                        for row in rows:
+                            formatted_row = []
+                            for value in row:
+                                if isinstance(value, Decimal):
+                                    formatted_row.append(f"{float(value):>15.2f}")
+                                elif isinstance(value, (int, float)):
+                                    formatted_row.append(f"{value:>15}")
+                                else:
+                                    str_val = str(value) if value else "N/A"
+                                    formatted_row.append(f"{str_val:>15}")
+                            print("   " + " | ".join(formatted_row))
+                    else:
+                        print("   No data found")
+        
+    except Exception as e:
+        logger.error(f"Error analyzing data: {e}")
+
+# Run data analysis
+analyze_sample_data()
+#+END_SRC
+
+* SQL Agent Implementation
+
+Now let's initialize our SQL Agent and test its basic functionality.
+
+#+BEGIN_SRC python :tangle sql_agent_init.py
+def initialize_sql_agent():
+    """Initialize and test the SQL Agent."""
+    try:
+        print("> Initializing SQL Agent")
+        print("=" * 40)
+        
+        # Create SQL Agent instance
+        agent = SQLAgent(
+            db_connection_params=DB_CONFIG,
+            aws_region=AWS_REGION,
+            aws_endpoint_url=AWS_ENDPOINT_URL
+        )
+        
+        # Refresh schema cache
+        print("=� Loading database schema...")
+        agent.refresh_schema('workshop')
+        
+        print(" SQL Agent initialized successfully!")
+        print(f"=� Cached schema for {len(agent.schema_cache)} tables")
+        
+        # Display schema summary
+        print("\n" + agent.get_schema_summary())
+        
+        return agent
+        
+    except Exception as e:
+        logger.error(f"Error initializing SQL Agent: {e}")
+        return None
+
+# Initialize the agent
+sql_agent = initialize_sql_agent()
+#+END_SRC
+
+* Natural Language Query Processing
+
+Let's test the SQL Agent with various natural language queries.
+
+#+BEGIN_SRC python :tangle nl_query_testing.py
+def test_natural_language_queries(agent):
+    """Test the SQL Agent with various natural language queries."""
+    if not agent:
+        print("L SQL Agent not available")
+        return
+    
+    # Test queries covering different complexity levels
+    test_queries = [
+        # Simple selection queries
+        "Show me all customers from California",
+        "List all products in the Electronics category",
+        "What customers are from Seattle?",
+        
+        # Aggregation queries
+        "How many orders have been placed?",
+        "What's the total revenue from all orders?",
+        "Show me the average price of products by category",
+        
+        # Joining queries
+        "Which customers have placed orders?",
+        "Show me customer names and their order totals",
+        "List all order items with product names",
+        
+        # Complex analytical queries
+        "What are the top 5 best-selling products by quantity?",
+        "Which customers have spent more than $100?",
+        "Show me monthly revenue for November 2024",
+        "Find customers who haven't placed any orders",
+        
+        # Time-based queries
+        "Show me orders placed in the last week",
+        "What orders were shipped but not delivered?",
+        "Find products that were never ordered"
+    ]
+    
+    print(">� Testing Natural Language Queries")
+    print("=" * 50)
+    
+    successful_queries = 0
+    total_queries = len(test_queries)
+    
+    for i, query in enumerate(test_queries, 1):
+        print(f"\n=8 Query {i}/{total_queries}: {query}")
+        print("-" * 60)
+        
+        # Process the query
+        result = agent.query(query)
+        
+        if result.success:
+            successful_queries += 1
+            print(f" Generated SQL:")
+            print(f"   {result.query}")
+            
+            if result.data:
+                print(f"=� Results: {len(result.data)} rows")
+                
+                # Show sample results (first 3 rows)
+                for j, row in enumerate(result.data[:3]):
+                    print(f"   Row {j+1}: {row}")
+                
+                if len(result.data) > 3:
+                    print(f"   ... and {len(result.data) - 3} more rows")
+            else:
+                print("=� No results returned")
+            
+            print(f"�  Execution time: {result.execution_time:.2f}s")
+            
+        else:
+            print(f"L Error: {result.error}")
+            if result.query:
+                print(f"   Generated SQL: {result.query}")
+    
+    # Summary
+    print("\n" + "=" * 60)
+    print(f"=� Test Summary: {successful_queries}/{total_queries} queries successful")
+    print(f"=� Success rate: {(successful_queries/total_queries)*100:.1f}%")
+
+# Run natural language query tests
+test_natural_language_queries(sql_agent)
+#+END_SRC
+
+* Query Validation and Security
+
+Let's examine the security features of our SQL Agent.
+
+#+BEGIN_SRC python :tangle security_testing.py
+def test_security_features(agent):
+    """Test SQL injection prevention and query validation."""
+    if not agent:
+        print("L SQL Agent not available")
+        return
+    
+    print("= Testing Security Features")
+    print("=" * 40)
+    
+    # Potentially dangerous queries that should be blocked
+    dangerous_queries = [
+        "DROP TABLE customers",
+        "DELETE FROM orders",
+        "UPDATE products SET price = 0",
+        "Show me all customers; DROP TABLE orders;",
+        "List products' OR '1'='1' --",
+        "INSERT INTO customers VALUES (999, 'Hacker', 'Evil')",
+        "ALTER TABLE products ADD COLUMN hacked TEXT"
+    ]
+    
+    blocked_count = 0
+    
+    for i, query in enumerate(dangerous_queries, 1):
+        print(f"\n=8 Test {i}: {query}")
+        
+        result = agent.query(query)
+        
+        if not result.success and "validation" in result.error.lower():
+            print(" Query blocked by validation")
+            blocked_count += 1
+        else:
+            print("L Query was not properly blocked!")
+        
+        if result.error:
+            print(f"   Error: {result.error}")
+    
+    print(f"\n=� Security Summary: {blocked_count}/{len(dangerous_queries)} dangerous queries blocked")
+    
+    # Test valid but complex queries
+    print("\n= Testing Complex Valid Queries")
+    print("-" * 40)
+    
+    complex_queries = [
+        "Show me customers who have ordered products from multiple categories",
+        "Find the month with the highest total revenue",
+        "List products that have been ordered by customers from at least 3 different states"
+    ]
+    
+    for query in complex_queries:
+        print(f"\n=8 Query: {query}")
+        result = agent.query(query)
+        
+        if result.success:
+            print(" Complex query executed successfully")
+            print(f"   SQL: {result.query}")
+        else:
+            print(f"L Error: {result.error}")
+
+# Test security features
+test_security_features(sql_agent)
+#+END_SRC
+
+* Advanced Query Patterns
+
+Let's explore more advanced query patterns and edge cases.
+
+#+BEGIN_SRC python :tangle advanced_patterns.py
+def test_advanced_query_patterns(agent):
+    """Test advanced SQL query patterns and edge cases."""
+    if not agent:
+        print("L SQL Agent not available")
+        return
+    
+    print("=� Testing Advanced Query Patterns")
+    print("=" * 45)
+    
+    advanced_queries = [
+        # Subqueries
+        "Show me customers who have placed orders worth more than the average order value",
+        
+        # Window functions (if supported)
+        "Rank customers by their total spending",
+        
+        # Date/time functions
+        "Show me orders placed on weekends",
+        "Find customers who placed their last order more than 30 days ago",
+        
+        # String operations
+        "Find all customers whose email contains 'gmail'",
+        "Show me products with names containing 'wireless'",
+        
+        # Mathematical operations
+        "Calculate the profit margin for each product (price - cost)",
+        "Show me the percentage of total revenue each customer represents",
+        
+        # Null handling
+        "Find orders that don't have a delivery date",
+        "Show me products without descriptions",
+        
+        # Complex aggregations
+        "Show me the running total of orders by date",
+        "Find the customer who has placed the most recent order",
+        
+        # Cross-table analytics
+        "Which supplier provides the most expensive products on average?",
+        "Show me the correlation between product price and order quantity"
+    ]
+    
+    successful_advanced = 0
+    
+    for i, query in enumerate(advanced_queries, 1):
+        print(f"\n=8 Advanced Query {i}: {query}")
+        print("-" * 70)
+        
+        result = agent.query(query)
+        
+        if result.success:
+            successful_advanced += 1
+            print(" Query executed successfully")
+            print(f"   SQL: {result.query}")
+            
+            if result.data:
+                print(f"   Results: {len(result.data)} rows")
+                # Show first result as example
+                if result.data:
+                    print(f"   Sample: {result.data[0]}")
+            
+        else:
+            print(f"L Error: {result.error}")
+    
+    print(f"\n=� Advanced Queries Summary: {successful_advanced}/{len(advanced_queries)} successful")
+
+# Test advanced patterns
+test_advanced_query_patterns(sql_agent)
+#+END_SRC
+
+* Interactive Query Interface
+
+Let's create an interactive interface for testing custom queries.
+
+#+BEGIN_SRC python :tangle interactive_interface.py
+def create_interactive_interface(agent):
+    """Create an interactive interface for testing queries."""
+    if not agent:
+        print("L SQL Agent not available")
+        return
+    
+    print("=� Interactive Query Interface")
+    print("=" * 40)
+    print("Type your natural language questions (or 'quit' to exit)")
+    print("Examples:")
+    print("  - 'Show me all customers from New York'")
+    print("  - 'What are the top selling products?'")
+    print("  - 'How much revenue did we make last month?'")
+    print()
+    
+    while True:
+        try:
+            # Get user input
+            user_query = input("> Your question: ").strip()
+            
+            if user_query.lower() in ['quit', 'exit', 'q']:
+                print("=K Goodbye!")
+                break
+            
+            if not user_query:
+                continue
+            
+            print(f"\n= Processing: {user_query}")
+            print("-" * 50)
+            
+            # Process the query
+            result = agent.query(user_query)
+            
+            if result.success:
+                print(f" Generated SQL:")
+                print(f"   {result.query}")
+                print()
+                
+                if result.data:
+                    # Format results nicely
+                    df = pd.DataFrame(result.data)
+                    print(f"=� Results ({len(result.data)} rows):")
+                    
+                    # Show results in a nice format
+                    if len(result.data) <= 10:
+                        print(df.to_string(index=False))
+                    else:
+                        print(df.head(10).to_string(index=False))
+                        print(f"\n... and {len(result.data) - 10} more rows")
+                else:
+                    print("=� No results found")
+                
+                print(f"\n�  Execution time: {result.execution_time:.2f}s")
+                
+            else:
+                print(f"L Error: {result.error}")
+                if result.query:
+                    print(f"   Generated SQL: {result.query}")
+            
+            print("\n" + "="*60 + "\n")
+            
+        except KeyboardInterrupt:
+            print("\n=K Goodbye!")
+            break
+        except Exception as e:
+            print(f"L Unexpected error: {e}")
+
+# Note: This is designed for interactive use
+# Uncomment the next line to start the interactive interface
+# create_interactive_interface(sql_agent)
+
+print("=� To start the interactive interface, run: create_interactive_interface(sql_agent)")
+#+END_SRC
+
+* Performance Optimization
+
+Let's analyze and optimize query performance.
+
+#+BEGIN_SRC python :tangle performance_optimization.py
+def analyze_query_performance(agent):
+    """Analyze and optimize query performance."""
+    if not agent:
+        print("L SQL Agent not available")
+        return
+    
+    print("� Query Performance Analysis")
+    print("=" * 40)
+    
+    # Test queries with different complexity levels
+    performance_tests = [
+        {
+            "name": "Simple Selection", 
+            "query": "Show me all customers from California",
+            "expected_complexity": "Low"
+        },
+        {
+            "name": "Single Table Aggregation",
+            "query": "What's the average price of products by category?",
+            "expected_complexity": "Medium"
+        },
+        {
+            "name": "Two Table Join",
+            "query": "Show me customer names and their total orders",
+            "expected_complexity": "Medium"
+        },
+        {
+            "name": "Multi-Table Join with Aggregation",
+            "query": "Which products have been ordered the most with customer details?",
+            "expected_complexity": "High"
+        },
+        {
+            "name": "Complex Analytics",
+            "query": "Show me monthly revenue trends with customer counts",
+            "expected_complexity": "High"
+        }
+    ]
+    
+    results = []
+    
+    for test in performance_tests:
+        print(f"\n=8 {test['name']}")
+        print(f"   Query: {test['query']}")
+        print(f"   Expected: {test['expected_complexity']} complexity")
+        
+        # Run query multiple times for average
+        times = []
+        for _ in range(3):
+            result = agent.query(test['query'])
+            if result.success and result.execution_time:
+                times.append(result.execution_time)
+        
+        if times:
+            avg_time = sum(times) / len(times)
+            results.append({
+                'name': test['name'],
+                'complexity': test['expected_complexity'],
+                'avg_time': avg_time,
+                'result_count': len(result.data) if result.data else 0
+            })
+            
+            print(f"   �  Average time: {avg_time:.3f}s")
+            print(f"   =� Result rows: {len(result.data) if result.data else 0}")
+        else:
+            print("   L Query failed")
+    
+    # Performance summary
+    if results:
+        print("\n=� Performance Summary")
+        print("-" * 40)
+        
+        for r in sorted(results, key=lambda x: x['avg_time']):
+            print(f"{r['name']:30} {r['avg_time']:8.3f}s ({r['complexity']} complexity)")
+    
+    return results
+
+# Analyze performance
+performance_results = analyze_query_performance(sql_agent)
+#+END_SRC
+
+* Error Handling and Recovery
+
+Let's test error handling and recovery mechanisms.
+
+#+BEGIN_SRC python :tangle error_handling.py
+def test_error_handling(agent):
+    """Test error handling and recovery mechanisms."""
+    if not agent:
+        print("L SQL Agent not available")
+        return
+    
+    print("=�  Testing Error Handling")
+    print("=" * 35)
+    
+    # Various error scenarios
+    error_scenarios = [
+        {
+            "name": "Ambiguous Query",
+            "query": "Show me the data",
+            "expected": "Clarification needed"
+        },
+        {
+            "name": "Non-existent Table Reference",
+            "query": "Show me all users from the accounts table",
+            "expected": "Table not found"
+        },
+        {
+            "name": "Impossible Condition",
+            "query": "Show me customers where age is greater than 200",
+            "expected": "Column doesn't exist or impossible value"
+        },
+        {
+            "name": "Complex Unclear Request",
+            "query": "Get me the thing from the place",
+            "expected": "Too vague"
+        },
+        {
+            "name": "Mixed Languages",
+            "query": "Mu�strame los clientes de California",
+            "expected": "Non-English query"
+        }
+    ]
+    
+    error_count = 0
+    
+    for i, scenario in enumerate(error_scenarios, 1):
+        print(f"\n=8 Test {i}: {scenario['name']}")
+        print(f"   Query: {scenario['query']}")
+        print(f"   Expected: {scenario['expected']}")
+        
+        result = agent.query(scenario['query'])
+        
+        if not result.success:
+            error_count += 1
+            print(" Error properly handled")
+            print(f"   Error message: {result.error}")
+        else:
+            print("�  Query unexpectedly succeeded")
+            if result.data:
+                print(f"   Returned {len(result.data)} rows")
+    
+    print(f"\n=� Error Handling Summary: {error_count}/{len(error_scenarios)} errors properly handled")
+
+# Test error handling
+test_error_handling(sql_agent)
+#+END_SRC
+
+* Integration with AWS Services
+
+Let's test integration with AWS Bedrock and other services.
+
+#+BEGIN_SRC python :tangle aws_integration.py
+def test_aws_integration():
+    """Test integration with AWS services."""
+    print("  Testing AWS Integration")
+    print("=" * 35)
+    
+    try:
+        # Test Bedrock connectivity
+        print("=8 Testing AWS Bedrock connectivity...")
+        
+        bedrock = boto3.client(
+            'bedrock-runtime',
+            region_name=AWS_REGION,
+            endpoint_url=AWS_ENDPOINT_URL
+        )
+        
+        # Simple test to verify connection
+        test_prompt = "Convert this to SQL: Show me all customers"
+        
+        response = bedrock.invoke_model(
+            modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 100,
+                "messages": [{"role": "user", "content": test_prompt}]
+            })
+        )
+        
+        print(" Bedrock connection successful")
+        
+        # Test other AWS services if needed
+        print("=8 Testing other AWS services...")
+        
+        # S3 test
+        s3 = boto3.client('s3', endpoint_url=AWS_ENDPOINT_URL, region_name=AWS_REGION)
+        buckets = s3.list_buckets()
+        print(f" S3 connection successful - Found {len(buckets['Buckets'])} buckets")
+        
+        # DynamoDB test
+        dynamodb = boto3.client('dynamodb', endpoint_url=AWS_ENDPOINT_URL, region_name=AWS_REGION)
+        tables = dynamodb.list_tables()
+        print(f" DynamoDB connection successful - Found {len(tables['TableNames'])} tables")
+        
+    except Exception as e:
+        print(f"L AWS integration error: {e}")
+        logger.error(f"AWS integration test failed: {e}")
+
+# Test AWS integration
+test_aws_integration()
+#+END_SRC
+
+* Workshop Exercises
+
+Here are hands-on exercises to practice Text-to-SQL concepts.
+
+#+BEGIN_SRC python :tangle workshop_exercises.py
+def workshop_exercises():
+    """Interactive workshop exercises for participants."""
+    print("=� Workshop Exercises")
+    print("=" * 30)
+    
+    exercises = [
+        {
+            "level": "Beginner",
+            "title": "Basic Queries",
+            "tasks": [
+                "Find all customers from Texas",
+                "List products priced under $50",
+                "Show orders placed in November 2024",
+                "Count how many products are in each category"
+            ]
+        },
+        {
+            "level": "Intermediate", 
+            "title": "Joins and Aggregations",
+            "tasks": [
+                "Show customer names with their total number of orders",
+                "Find the most popular product by quantity sold",
+                "Calculate average order value by customer state",
+                "List customers who have never placed an order"
+            ]
+        },
+        {
+            "level": "Advanced",
+            "title": "Complex Analytics",
+            "tasks": [
+                "Find customers who have ordered products from multiple categories",
+                "Calculate the running total of revenue by date",
+                "Identify the top 3 customers by lifetime value in each state",
+                "Show month-over-month growth in number of orders"
+            ]
+        }
+    ]
+    
+    for exercise in exercises:
+        print(f"\n<� {exercise['level']} Level: {exercise['title']}")
+        print("-" * 50)
+        
+        for i, task in enumerate(exercise['tasks'], 1):
+            print(f"   {i}. {task}")
+        
+        print("\n   =� Hint: Try each query with the SQL agent and analyze the results!")
+    
+    # Sample solutions (for reference)
+    print("\n= Sample Solutions (Beginner Level)")
+    print("-" * 40)
+    
+    if sql_agent:
+        sample_queries = [
+            "Find all customers from Texas",
+            "List products priced under $50"
+        ]
+        
+        for query in sample_queries:
+            print(f"\n=� Query: {query}")
+            result = sql_agent.query(query)
+            if result.success:
+                print(f"   SQL: {result.query}")
+                if result.data:
+                    print(f"   Results: {len(result.data)} rows found")
+            else:
+                print(f"   Error: {result.error}")
+
+# Run workshop exercises
+workshop_exercises()
+#+END_SRC
+
+* Summary and Best Practices
+
+#+BEGIN_SRC python :tangle summary_best_practices.py
+def display_summary_and_best_practices():
+    """Display summary and best practices for Text-to-SQL."""
+    
+    print("=� Text-to-SQL Workshop Summary")
+    print("=" * 45)
+    
+    print("\n What We've Accomplished:")
+    print("  " Set up a complete Text-to-SQL pipeline")
+    print("  " Implemented database schema introspection")
+    print("  " Created natural language to SQL conversion using Bedrock")
+    print("  " Added security validation for generated queries")
+    print("  " Built performance monitoring and error handling")
+    print("  " Tested with real-world query patterns")
+    
+    print("\n<� Key Components Covered:")
+    print("  " Database schema understanding and documentation")
+    print("  " Natural language processing with AWS Bedrock")
+    print("  " SQL generation and validation")
+    print("  " Security measures against SQL injection")
+    print("  " Performance optimization techniques")
+    print("  " Error handling and recovery strategies")
+    
+    print("\n<� Best Practices:")
+    print("  1. Schema Documentation:")
+    print("     - Maintain clear table and column descriptions")
+    print("     - Document relationships and business rules")
+    print("     - Use meaningful table and column names")
+    
+    print("\n  2. Security Measures:")
+    print("     - Always validate generated SQL queries")
+    print("     - Implement allow-lists for query patterns")
+    print("     - Use read-only database connections")
+    print("     - Log all queries for audit purposes")
+    
+    print("\n  3. Performance Optimization:")
+    print("     - Cache schema information")
+    print("     - Implement query result caching")
+    print("     - Monitor and optimize slow queries")
+    print("     - Set reasonable limits on result sizes")
+    
+    print("\n  4. User Experience:")
+    print("     - Provide clear error messages")
+    print("     - Offer query suggestions and examples")
+    print("     - Show query confidence scores")
+    print("     - Allow query refinement and iteration")
+    
+    print("\n  5. Production Considerations:")
+    print("     - Implement rate limiting")
+    print("     - Add comprehensive logging")
+    print("     - Monitor model performance")
+    print("     - Plan for model updates and versioning")
+    
+    print("\n=� Next Steps:")
+    print("  " Integrate with your production databases")
+    print("  " Add more sophisticated NLP preprocessing")
+    print("  " Implement query result visualization")
+    print("  " Build user feedback collection")
+    print("  " Add support for multiple database types")
+    
+    print("\n= Related Workshop Modules:")
+    print("  " Module 1: RAG Basics - For document-based Q&A")
+    print("  " Module 2: Advanced RAG - For hybrid search approaches")
+    print("  " Module 4: Fine-tuning - For customizing models")
+    print("  " Module 5: Cost Analysis - For production optimization")
+
+# Display summary
+display_summary_and_best_practices()
+#+END_SRC
+
+* Exercises
+
+** Exercise 1: Custom Query Patterns
+Implement support for additional query patterns like:
+- Time-series analysis queries
+- Statistical functions (median, percentiles)
+- Geospatial queries (if location data exists)
+
+** Exercise 2: Multi-Database Support
+Extend the SQL Agent to support multiple database types:
+- Add support for DynamoDB queries
+- Implement SQLite compatibility
+- Add MySQL/MariaDB support
+
+** Exercise 3: Query Optimization
+Implement query optimization features:
+- Automatic index suggestions
+- Query plan analysis
+- Performance monitoring dashboard
+
+** Exercise 4: Advanced Security
+Enhance security measures:
+- Row-level security based on user context
+- Dynamic data masking for sensitive fields
+- Audit logging with user attribution
+
+** Exercise 5: Integration Enhancement
+Improve AWS integration:
+- Use AWS Secrets Manager for database credentials
+- Implement CloudWatch logging
+- Add X-Ray tracing for performance analysis
+
+* Conclusion
+
+This module demonstrated how to build a complete Text-to-SQL system using AWS Bedrock and PostgreSQL. We covered:
+
+1. Database schema introspection and documentation
+2. Natural language processing with large language models
+3. SQL generation with security validation
+4. Performance optimization and error handling
+5. Integration with AWS services via LocalStack
+
+The system provides a foundation for making databases accessible to non-technical users while maintaining security and performance standards.
+
+** Next Module: [[file:04_fine_tuning.org][Fine-tuning Models for Domain-Specific Tasks]]
