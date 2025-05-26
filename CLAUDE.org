@@ -79,3 +79,26 @@ LocalStack runs on port 4566 with these pre-configured resources:
 - Run individual tests: =pytest tests/test_rag.py::test_specific_function=
 - Mock AWS services using moto or LocalStack endpoints
 - Test data should use the sample-data directory
+
+** Git Commit Guidelines
+
+When making commits:
+- Use conventional commit format: =<type>(<scope>): <description>=
+- Use =--trailer= for Co-Authored-By instead of in the commit body
+- Never include "Generated with" in the commit message body
+- Always use =--no-gpg-sign= flag
+
+*** Correct commit format:
+#+begin_src bash
+git commit --no-gpg-sign -m "feat(rag): add document chunking optimization" \
+  --trailer "Co-Authored-By: Claude <noreply@anthropic.com>"
+#+end_src
+
+*** Incorrect format (avoid):
+#+begin_src bash
+# Don't put co-authorship in the message body
+git commit -m "feat(rag): add chunking
+
+Generated with Claude Code
+Co-Authored-By: Claude <noreply@anthropic.com>"
+#+end_src

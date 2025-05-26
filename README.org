@@ -112,11 +112,11 @@ Each notebook contains executable Python code blocks. You can run them in severa
 
 **** Option 1: Direct Python Execution
 #+BEGIN_SRC shell
-# Convert org files to Python scripts
-make convert-notebooks
+# Extract code from org files
+make tangle
 
-# Run extracted Python code
-python notebooks/01_rag_basics.py
+# Run the RAG pipeline demo
+make run-rag-pipeline
 #+END_SRC
 
 **** Option 2: Copy and Run
@@ -196,7 +196,7 @@ aws dynamodb query \
 
 *** LocalStack won't start
 #+BEGIN_SRC shell
-docker system prune -a
+make clean-all
 make localstack-up
 #+END_SRC
 
@@ -220,7 +220,7 @@ aws --endpoint-url=http://localhost:4566 s3 ls
 
 *** Notebook execution issues
 - Ensure kernel uses correct Python environment
-- Check LocalStack is running: =docker ps=
+- Check LocalStack is running: =make localstack-logs=
 
 ** Resources
 
