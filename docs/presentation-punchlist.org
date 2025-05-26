@@ -1,0 +1,169 @@
+#+TITLE: Presentation Punchlist for Workshop
+#+SUBTITLE: Key items to gather during workshop for June 5 presentation
+#+DATE: 2025-05-26
+#+PROPERTY: header-args :mkdirp yes
+
+* Overview
+
+This punchlist serves as a lens during the Thursday workshop (May 29) to ensure we capture the specific data and evidence needed to address reviewer feedback.
+
+* 🔴 Critical Data to Capture
+
+** 1. Financial Justification (CFO - Isabella)
+*** During Workshop:
+- [ ] Track actual time spent on each module
+- [ ] Document specific tasks that would be accelerated
+- [ ] Measure baseline vs. optimized performance metrics
+- [ ] Calculate actual AWS costs for exercises
+- [ ] Note which manual processes could be automated
+
+*** Specific Metrics Needed:
+- Current time to answer customer query: ___ minutes
+- RAG-enabled query time: ___ seconds  
+- Current accuracy rate: ___%
+- RAG accuracy rate: ___%
+- Cost per query (manual vs automated): $___
+
+** 2. Participant Details (All Reviewers)
+*** During Workshop:
+- [ ] Exact attendee count: ___
+- [ ] Role distribution (junior/senior/lead): ___
+- [ ] Team representation: ___
+- [ ] Prior AI/ML experience level: ___
+
+** 3. Technical Validation (CTO/Staff Engineer)
+*** During Workshop:
+- [ ] Benchmark actual latency (P50, P95, P99)
+- [ ] Document failure scenarios encountered
+- [ ] Note integration challenges with existing systems
+- [ ] Capture security considerations discussed
+- [ ] List operational requirements discovered
+
+*** Performance Data:
+| Operation | Baseline | With RAG | Improvement |
+|-----------|----------|----------|-------------|
+| Query Response | ___ ms | ___ ms | ___% |
+| Document Processing | ___ s | ___ s | ___% |
+| Accuracy | ___% | ___% | ___% |
+
+** 4. Customer Impact Evidence (Product Manager)
+*** During Workshop:
+- [ ] Identify 3 specific use cases for OUR products
+- [ ] Map to actual customer pain points
+- [ ] Document competitive advantages gained
+- [ ] Note which features customers have requested
+
+*** Use Case Template:
+1. Customer Problem: ___
+2. Current Solution: ___
+3. RAG-Enabled Solution: ___
+4. Time/Cost Savings: ___
+5. Customer Quote/Reaction: ___
+
+** 5. Organizational Readiness (VP Engineering)
+*** During Workshop:
+- [ ] Document skill gaps observed
+- [ ] Note knowledge transfer challenges
+- [ ] Track questions asked (complexity indicator)
+- [ ] Identify champion candidates
+- [ ] Assess production readiness steps
+
+* 🟡 Important Supporting Data
+
+** Alternative Comparisons
+- [ ] Azure OpenAI capabilities/limitations
+- [ ] Google Vertex AI comparison points
+- [ ] Open source alternatives tried
+- [ ] Build vs buy decision factors
+
+** Risk Observations
+- [ ] Security concerns raised
+- [ ] Implementation challenges faced
+- [ ] Debugging difficulties encountered
+- [ ] Vendor lock-in mitigation strategies
+
+** Success Indicators
+- [ ] "Aha!" moments from participants
+- [ ] Specific problems solved
+- [ ] Enthusiasm level (1-10)
+- [ ] Volunteer champions identified
+
+* 📸 Evidence Collection Strategy
+
+** Screenshots/Recordings
+1. Before/after performance comparisons
+2. Cost optimization dashboard
+3. Successful implementations
+4. Architecture diagrams created
+5. Error messages and solutions
+
+** Quotes to Capture
+- Participant reactions to capabilities
+- Concerns about implementation
+- Ideas for applications
+- Commitment statements
+
+** Code Artifacts
+- Working examples
+- Integration patterns  
+- Security implementations
+- Testing strategies
+
+* 🎯 Presentation Enhancement Checklist
+
+Based on workshop outcomes, update these slides:
+
+- [ ] Slide 2: Add actual participant count
+- [ ] Slide 7: Replace generic benefits with measured improvements
+- [ ] Slide 13: Update ROI with real calculations
+- [ ] Slide 8: Add our specific use cases
+- [ ] Slide 10: Include security measures implemented
+- [ ] Slide 17: Expand knowledge transfer based on experience
+- [ ] Slide 26: Update architecture with actual implementation
+
+* 📊 Post-Workshop Analysis
+
+** Day 1 (May 30)
+- [ ] Compile metrics and measurements
+- [ ] Gather participant feedback
+- [ ] Document lessons learned
+- [ ] Identify presentation gaps
+
+** Day 2 (May 31)
+- [ ] Update presentation with data
+- [ ] Create backup slides
+- [ ] Prepare Q&A responses
+- [ ] Schedule dry run
+
+* 🚨 Red Flags to Address
+
+If these occur during workshop, have mitigation ready:
+
+1. **Poor performance** → Have optimization strategies
+2. **High complexity** → Show abstraction layers
+3. **Security issues** → Document remediation
+4. **Cost overruns** → Explain optimization techniques
+5. **Low enthusiasm** → Pivot to different use cases
+
+* 💡 Opportunity Indicators
+
+Watch for these positive signals:
+
+1. Participants solving real problems
+2. Performance exceeding expectations
+3. Cost savings discoveries
+4. Security best practices adopted
+5. Clear competitive advantages
+6. Strong volunteer champions
+
+* Final Checklist for June 5
+
+Before presentation:
+- [ ] All placeholders replaced with data
+- [ ] Customer validation obtained
+- [ ] Technical benchmarks verified
+- [ ] Financial model validated
+- [ ] Risk mitigation documented
+- [ ] Success stories prepared
+- [ ] Q&A rehearsed
+- [ ] Executive summary updated
