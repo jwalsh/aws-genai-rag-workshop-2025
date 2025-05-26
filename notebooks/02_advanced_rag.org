@@ -1,0 +1,620 @@
+#+TITLE: Module 2: Advanced RAG Techniques
+#+AUTHOR: Jason Walsh
+#+EMAIL: j@wal.sh
+#+PROPERTY: header-args:python :tangle yes :results output
+
+* Advanced RAG Patterns
+
+Building on the basics, this module explores advanced techniques to improve RAG system performance, accuracy, and reliability.
+
+** Key Topics
+- Reranking for improved relevance
+- Hybrid search combining keyword and semantic search
+- Query expansion and reformulation
+- RAG evaluation metrics
+
+* Setup
+
+#+BEGIN_SRC python :tangle setup.py
+import os
+import numpy as np
+from typing import List, Dict, Tuple, Optional
+from dataclasses import dataclass
+import boto3
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Advanced configuration
+RERANK_TOP_K = int(os.getenv("RERANK_TOP_K", "20"))
+FINAL_TOP_K = int(os.getenv("FINAL_TOP_K", "5"))
+HYBRID_ALPHA = float(os.getenv("HYBRID_ALPHA", "0.7"))  # Weight for semantic search
+
+print(f"Advanced RAG Configuration:")
+print(f"  Rerank top-k: {RERANK_TOP_K}")
+print(f"  Final top-k: {FINAL_TOP_K}")
+print(f"  Hybrid search alpha: {HYBRID_ALPHA}")
+#+END_SRC
+
+* Reranking Implementation
+
+Cross-encoder reranking significantly improves retrieval quality by considering the full context of query-document pairs.
+
+#+BEGIN_SRC python :tangle reranker.py
+from sentence_transformers import CrossEncoder
+from typing import List, Tuple
+import numpy as np
+
+class CrossEncoderReranker:
+    """Rerank documents using a cross-encoder model."""
+    
+    def __init__(self, model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"):
+        self.model = CrossEncoder(model_name)
+    
+    def rerank(self, 
+               query: str, 
+               documents: List[str], 
+               top_k: Optional[int] = None) -> List[Tuple[int, float, str]]:
+        """
+        Rerank documents based on relevance to query.
+        
+        Returns list of (index, score, document) tuples.
+        """
+        # Create query-document pairs
+        pairs = [[query, doc] for doc in documents]
+        
+        # Get reranking scores
+        scores = self.model.predict(pairs)
+        
+        # Sort by score (descending)
+        sorted_indices = np.argsort(scores)[::-1]
+        
+        # Return top-k results
+        results = []
+        limit = top_k if top_k else len(documents)
+        
+        for i in range(min(limit, len(documents))):
+            idx = sorted_indices[i]
+            results.append((idx, float(scores[idx]), documents[idx]))
+        
+        return results
+
+# Example usage
+if __name__ == "__main__":
+    reranker = CrossEncoderReranker()
+    
+    query = "What are the benefits of cloud computing?"
+    documents = [
+        "Cloud computing offers scalability and cost savings.",
+        "The weather forecast shows clouds tomorrow.",
+        "AWS provides reliable cloud infrastructure.",
+        "Cloud storage enables data backup and recovery.",
+        "Cumulus clouds are fluffy and white."
+    ]
+    
+    results = reranker.rerank(query, documents, top_k=3)
+    
+    print(f"Query: {query}\n")
+    print("Reranked results:")
+    for idx, score, doc in results:
+        print(f"  Score: {score:.4f} - {doc}")
+#+END_SRC
+
+* Hybrid Search
+
+Combining keyword-based (BM25) and semantic search often yields better results than either approach alone.
+
+#+BEGIN_SRC python :tangle hybrid_search.py
+from typing import List, Dict, Tuple
+from rank_bm25 import BM25Okapi
+import numpy as np
+from collections import defaultdict
+
+class HybridSearcher:
+    """Combine BM25 and semantic search for improved retrieval."""
+    
+    def __init__(self, documents: List[str], embeddings: np.ndarray, alpha: float = 0.7):
+        """
+        Initialize hybrid searcher.
+        
+        Args:
+            documents: List of document texts
+            embeddings: Document embeddings for semantic search
+            alpha: Weight for semantic search (1-alpha for BM25)
+        """
+        self.documents = documents
+        self.embeddings = embeddings
+        self.alpha = alpha
+        
+        # Initialize BM25
+        tokenized_docs = [doc.lower().split() for doc in documents]
+        self.bm25 = BM25Okapi(tokenized_docs)
+    
+    def search(self, 
+               query: str, 
+               query_embedding: np.ndarray,
+               top_k: int = 10) -> List[Dict]:
+        """Perform hybrid search combining BM25 and semantic search."""
+        
+        # BM25 search
+        query_tokens = query.lower().split()
+        bm25_scores = self.bm25.get_scores(query_tokens)
+        
+        # Normalize BM25 scores
+        if max(bm25_scores) > 0:
+            bm25_scores = bm25_scores / max(bm25_scores)
+        
+        # Semantic search (cosine similarity)
+        semantic_scores = np.dot(self.embeddings, query_embedding)
+        semantic_scores = (semantic_scores + 1) / 2  # Normalize to [0, 1]
+        
+        # Combine scores
+        final_scores = self.alpha * semantic_scores + (1 - self.alpha) * bm25_scores
+        
+        # Get top-k results
+        top_indices = np.argsort(final_scores)[::-1][:top_k]
+        
+        results = []
+        for idx in top_indices:
+            results.append({
+                'document': self.documents[idx],
+                'score': float(final_scores[idx]),
+                'bm25_score': float(bm25_scores[idx]),
+                'semantic_score': float(semantic_scores[idx]),
+                'index': int(idx)
+            })
+        
+        return results
+
+# Example usage
+if __name__ == "__main__":
+    from embeddings import EmbeddingGenerator
+    
+    # Sample documents
+    docs = [
+        "Machine learning algorithms learn patterns from data.",
+        "Deep learning uses neural networks for complex tasks.",
+        "Natural language processing helps computers understand text.",
+        "Computer vision enables machines to interpret images.",
+        "Reinforcement learning trains agents through rewards."
+    ]
+    
+    # Generate embeddings
+    generator = EmbeddingGenerator()
+    doc_embeddings = generator.generate(docs)
+    
+    # Create hybrid searcher
+    searcher = HybridSearcher(docs, doc_embeddings, alpha=0.7)
+    
+    # Search
+    query = "How do neural networks learn?"
+    query_emb = generator.generate(query)[0]
+    
+    results = searcher.search(query, query_emb, top_k=3)
+    
+    print(f"Query: {query}\n")
+    for i, result in enumerate(results):
+        print(f"{i+1}. {result['document']}")
+        print(f"   Combined: {result['score']:.3f}, BM25: {result['bm25_score']:.3f}, Semantic: {result['semantic_score']:.3f}\n")
+#+END_SRC
+
+* Query Expansion
+
+Improving retrieval by expanding queries with related terms and concepts.
+
+#+BEGIN_SRC python :tangle query_expansion.py
+from typing import List, Set
+import spacy
+from collections import defaultdict
+
+class QueryExpander:
+    """Expand queries with synonyms and related terms."""
+    
+    def __init__(self):
+        # Load spaCy model for NLP
+        try:
+            self.nlp = spacy.load("en_core_web_sm")
+        except:
+            print("Installing spacy model...")
+            import subprocess
+            subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
+            self.nlp = spacy.load("en_core_web_sm")
+        
+        # Simple synonym dictionary (in practice, use WordNet or similar)
+        self.synonyms = {
+            "machine learning": ["ML", "artificial intelligence", "AI", "deep learning"],
+            "database": ["DB", "data store", "repository"],
+            "cloud": ["cloud computing", "AWS", "Azure", "GCP"],
+            "api": ["API", "interface", "endpoint", "service"],
+            "rag": ["retrieval augmented generation", "retrieval-augmented generation"]
+        }
+    
+    def expand_query(self, query: str, max_expansions: int = 5) -> List[str]:
+        """Expand query with related terms."""
+        expanded_queries = [query]
+        query_lower = query.lower()
+        
+        # Check for known synonyms
+        for term, synonyms in self.synonyms.items():
+            if term in query_lower:
+                for syn in synonyms[:max_expansions]:
+                    expanded = query_lower.replace(term, syn)
+                    if expanded not in expanded_queries:
+                        expanded_queries.append(expanded)
+        
+        # Extract entities and add variations
+        doc = self.nlp(query)
+        for ent in doc.ents:
+            # Add entity type queries
+            entity_query = f"{ent.text} {ent.label_}"
+            if entity_query not in expanded_queries:
+                expanded_queries.append(entity_query)
+        
+        return expanded_queries[:max_expansions]
+    
+    def generate_subqueries(self, query: str) -> List[str]:
+        """Generate subqueries by decomposing complex queries."""
+        doc = self.nlp(query)
+        subqueries = [query]
+        
+        # Extract noun phrases as potential subqueries
+        for chunk in doc.noun_chunks:
+            if len(chunk.text.split()) > 1:
+                subqueries.append(chunk.text)
+        
+        # Extract questions from different aspects
+        if "and" in query.lower():
+            parts = query.lower().split("and")
+            subqueries.extend([part.strip() for part in parts])
+        
+        return list(set(subqueries))
+
+# Example usage
+if __name__ == "__main__":
+    expander = QueryExpander()
+    
+    queries = [
+        "How does machine learning work in cloud environments?",
+        "What is RAG and how is it used?",
+        "Database API performance optimization"
+    ]
+    
+    for query in queries:
+        print(f"\nOriginal: {query}")
+        print("Expanded:")
+        for expanded in expander.expand_query(query):
+            print(f"  - {expanded}")
+        
+        print("Subqueries:")
+        for subquery in expander.generate_subqueries(query):
+            print(f"  - {subquery}")
+#+END_SRC
+
+* RAG Evaluation Metrics
+
+Implementing metrics to evaluate RAG system performance.
+
+#+BEGIN_SRC python :tangle evaluation.py
+from typing import List, Dict, Tuple
+import numpy as np
+from collections import Counter
+from nltk.translate.bleu_score import sentence_bleu
+from rouge import Rouge
+import nltk
+
+# Download required NLTK data
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+
+class RAGEvaluator:
+    """Evaluate RAG system performance with various metrics."""
+    
+    def __init__(self):
+        self.rouge = Rouge()
+    
+    def precision_at_k(self, retrieved: List[str], relevant: List[str], k: int) -> float:
+        """Calculate Precision@K."""
+        retrieved_k = retrieved[:k]
+        relevant_set = set(relevant)
+        
+        hits = sum(1 for doc in retrieved_k if doc in relevant_set)
+        return hits / k if k > 0 else 0.0
+    
+    def recall_at_k(self, retrieved: List[str], relevant: List[str], k: int) -> float:
+        """Calculate Recall@K."""
+        retrieved_k = retrieved[:k]
+        relevant_set = set(relevant)
+        
+        hits = sum(1 for doc in retrieved_k if doc in relevant_set)
+        return hits / len(relevant) if len(relevant) > 0 else 0.0
+    
+    def mean_reciprocal_rank(self, retrieved: List[str], relevant: List[str]) -> float:
+        """Calculate Mean Reciprocal Rank (MRR)."""
+        relevant_set = set(relevant)
+        
+        for i, doc in enumerate(retrieved):
+            if doc in relevant_set:
+                return 1.0 / (i + 1)
+        return 0.0
+    
+    def evaluate_generation(self, generated: str, reference: str) -> Dict[str, float]:
+        """Evaluate generated text against reference."""
+        results = {}
+        
+        # BLEU score
+        reference_tokens = nltk.word_tokenize(reference.lower())
+        generated_tokens = nltk.word_tokenize(generated.lower())
+        results['bleu'] = sentence_bleu([reference_tokens], generated_tokens)
+        
+        # ROUGE scores
+        try:
+            rouge_scores = self.rouge.get_scores(generated, reference)[0]
+            results['rouge-1'] = rouge_scores['rouge-1']['f']
+            results['rouge-2'] = rouge_scores['rouge-2']['f']
+            results['rouge-l'] = rouge_scores['rouge-l']['f']
+        except:
+            results['rouge-1'] = 0.0
+            results['rouge-2'] = 0.0
+            results['rouge-l'] = 0.0
+        
+        return results
+    
+    def evaluate_rag_pipeline(self, 
+                            queries: List[str],
+                            retrieved_docs: List[List[str]],
+                            relevant_docs: List[List[str]],
+                            generated_answers: List[str],
+                            reference_answers: List[str]) -> Dict[str, float]:
+        """Comprehensive RAG pipeline evaluation."""
+        metrics = defaultdict(list)
+        
+        for i in range(len(queries)):
+            # Retrieval metrics
+            metrics['precision@5'].append(
+                self.precision_at_k(retrieved_docs[i], relevant_docs[i], 5)
+            )
+            metrics['recall@5'].append(
+                self.recall_at_k(retrieved_docs[i], relevant_docs[i], 5)
+            )
+            metrics['mrr'].append(
+                self.mean_reciprocal_rank(retrieved_docs[i], relevant_docs[i])
+            )
+            
+            # Generation metrics
+            if i < len(generated_answers) and i < len(reference_answers):
+                gen_metrics = self.evaluate_generation(
+                    generated_answers[i], 
+                    reference_answers[i]
+                )
+                for key, value in gen_metrics.items():
+                    metrics[f'generation_{key}'].append(value)
+        
+        # Average all metrics
+        return {key: np.mean(values) for key, values in metrics.items()}
+
+# Example usage
+if __name__ == "__main__":
+    evaluator = RAGEvaluator()
+    
+    # Sample evaluation data
+    retrieved = ["doc1", "doc2", "doc3", "doc4", "doc5"]
+    relevant = ["doc2", "doc4", "doc6"]
+    
+    print("Retrieval Metrics:")
+    print(f"Precision@5: {evaluator.precision_at_k(retrieved, relevant, 5):.3f}")
+    print(f"Recall@5: {evaluator.recall_at_k(retrieved, relevant, 5):.3f}")
+    print(f"MRR: {evaluator.mean_reciprocal_rank(retrieved, relevant):.3f}")
+    
+    # Generation evaluation
+    generated = "Cloud computing provides scalable infrastructure and reduces costs."
+    reference = "Cloud computing offers scalable resources and cost-effective solutions."
+    
+    print("\nGeneration Metrics:")
+    gen_metrics = evaluator.evaluate_generation(generated, reference)
+    for metric, score in gen_metrics.items():
+        print(f"{metric}: {score:.3f}")
+#+END_SRC
+
+* Advanced RAG Pipeline
+
+Combining all advanced techniques into an improved pipeline.
+
+#+BEGIN_SRC python :tangle advanced_pipeline.py
+import os
+from typing import List, Dict, Optional, Tuple
+from reranker import CrossEncoderReranker
+from hybrid_search import HybridSearcher
+from query_expansion import QueryExpander
+from evaluation import RAGEvaluator
+import numpy as np
+
+class AdvancedRAGPipeline:
+    """Advanced RAG pipeline with reranking, hybrid search, and query expansion."""
+    
+    def __init__(self,
+                 embedding_model: str = "all-MiniLM-L6-v2",
+                 rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
+                 hybrid_alpha: float = 0.7):
+        
+        from embeddings import EmbeddingGenerator
+        from vector_store import FAISSVectorStore
+        
+        self.embedder = EmbeddingGenerator(embedding_model)
+        self.vector_store = FAISSVectorStore(self.embedder.dimension)
+        self.reranker = CrossEncoderReranker(rerank_model)
+        self.query_expander = QueryExpander()
+        self.evaluator = RAGEvaluator()
+        
+        self.documents = []
+        self.hybrid_alpha = hybrid_alpha
+        self.hybrid_searcher = None
+    
+    def add_documents(self, documents: List[str], metadata: Optional[List[Dict]] = None):
+        """Add documents to the pipeline."""
+        # Store documents
+        self.documents.extend(documents)
+        
+        # Generate embeddings
+        embeddings = self.embedder.generate(documents)
+        
+        # Add to vector store
+        self.vector_store.add(embeddings, documents, metadata)
+        
+        # Reinitialize hybrid searcher
+        all_embeddings = self.embedder.generate(self.documents)
+        self.hybrid_searcher = HybridSearcher(
+            self.documents, 
+            all_embeddings, 
+            self.hybrid_alpha
+        )
+    
+    def retrieve(self, 
+                query: str, 
+                use_query_expansion: bool = True,
+                use_hybrid_search: bool = True,
+                use_reranking: bool = True,
+                initial_k: int = 20,
+                final_k: int = 5) -> List[Dict]:
+        """Advanced retrieval with all techniques."""
+        
+        # Query expansion
+        if use_query_expansion:
+            expanded_queries = self.query_expander.expand_query(query, max_expansions=3)
+        else:
+            expanded_queries = [query]
+        
+        all_results = []
+        
+        for exp_query in expanded_queries:
+            query_embedding = self.embedder.generate(exp_query)[0]
+            
+            if use_hybrid_search and self.hybrid_searcher:
+                # Hybrid search
+                results = self.hybrid_searcher.search(
+                    exp_query, 
+                    query_embedding, 
+                    top_k=initial_k
+                )
+                all_results.extend(results)
+            else:
+                # Standard semantic search
+                results = self.vector_store.search(query_embedding, k=initial_k)
+                all_results.extend(results)
+        
+        # Deduplicate results
+        seen_docs = set()
+        unique_results = []
+        for result in all_results:
+            doc_text = result.get('document', result.get('text', ''))
+            if doc_text not in seen_docs:
+                seen_docs.add(doc_text)
+                unique_results.append(result)
+        
+        # Reranking
+        if use_reranking and len(unique_results) > 0:
+            documents = [r.get('document', r.get('text', '')) for r in unique_results]
+            reranked = self.reranker.rerank(query, documents, top_k=final_k)
+            
+            # Update results with reranking scores
+            final_results = []
+            for idx, score, doc in reranked:
+                result = unique_results[idx].copy()
+                result['rerank_score'] = score
+                final_results.append(result)
+            
+            return final_results
+        else:
+            return unique_results[:final_k]
+    
+    def generate_response(self, 
+                         query: str,
+                         retrieved_contexts: List[Dict]) -> str:
+        """Generate response using retrieved contexts."""
+        # In a real implementation, this would use an LLM
+        # For now, we'll create a summary of retrieved contexts
+        
+        context_texts = [ctx.get('document', ctx.get('text', '')) 
+                        for ctx in retrieved_contexts]
+        
+        response = f"Based on the query '{query}', here are the relevant findings:\n\n"
+        
+        for i, context in enumerate(context_texts[:3], 1):
+            response += f"{i}. {context[:150]}...\n\n"
+        
+        return response
+
+# Example usage
+if __name__ == "__main__":
+    # Create advanced pipeline
+    pipeline = AdvancedRAGPipeline()
+    
+    # Add sample documents
+    documents = [
+        "Machine learning models can be trained using supervised, unsupervised, or reinforcement learning approaches.",
+        "Deep learning is a subset of machine learning that uses neural networks with multiple layers.",
+        "Natural language processing enables computers to understand, interpret, and generate human language.",
+        "Computer vision allows machines to interpret and understand visual information from the world.",
+        "Transfer learning leverages pre-trained models to solve new but related problems efficiently.",
+        "Federated learning enables training models on distributed data without centralizing it.",
+        "Active learning selects the most informative samples for labeling to improve model performance.",
+        "Meta-learning, or learning to learn, helps models adapt quickly to new tasks with minimal data."
+    ]
+    
+    pipeline.add_documents(documents)
+    
+    # Test queries
+    queries = [
+        "How can machine learning models learn from limited data?",
+        "What are the different types of learning approaches in AI?"
+    ]
+    
+    for query in queries:
+        print(f"\nQuery: {query}")
+        print("-" * 50)
+        
+        # Retrieve with all advanced techniques
+        results = pipeline.retrieve(
+            query,
+            use_query_expansion=True,
+            use_hybrid_search=True,
+            use_reranking=True
+        )
+        
+        # Display results
+        print("Retrieved contexts:")
+        for i, result in enumerate(results, 1):
+            doc = result.get('document', result.get('text', ''))[:100]
+            score = result.get('rerank_score', result.get('score', 0))
+            print(f"{i}. (Score: {score:.3f}) {doc}...")
+        
+        # Generate response
+        response = pipeline.generate_response(query, results)
+        print(f"\nGenerated Response:\n{response}")
+#+END_SRC
+
+* Exercises
+
+** Exercise 1: Implement Custom Reranker
+Create a reranker that uses multiple signals (semantic similarity, keyword overlap, entity matching).
+
+** Exercise 2: Multi-Stage Retrieval
+Implement a retrieval system with coarse-to-fine search: BM25 ’ Semantic ’ Reranking.
+
+** Exercise 3: Query Understanding
+Build a query classifier that determines query type (factual, analytical, comparative) and adjusts retrieval strategy.
+
+** Exercise 4: Evaluation Dataset
+Create a test dataset with queries, relevant documents, and reference answers to evaluate your RAG system.
+
+* Summary
+
+Advanced RAG techniques significantly improve system performance:
+
+1. *Reranking*: Cross-encoders provide more accurate relevance scoring
+2. *Hybrid Search*: Combining keyword and semantic search captures different aspects
+3. *Query Expansion*: Related terms and subqueries improve recall
+4. *Evaluation*: Systematic metrics help optimize the pipeline
+
+Next module: [[file:03_text_to_sql.org][Text-to-SQL with Natural Language]]

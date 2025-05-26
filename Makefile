@@ -9,15 +9,7 @@ PANDOC := pandoc
 # File dependencies
 README.md: README.org
 	@echo "Generating README.md from README.org..."
-	@if command -v $(PANDOC) >/dev/null 2>&1; then \
-		$(PANDOC) -f org -t gfm -o $@ $<; \
-	else \
-		echo "Warning: pandoc not found, creating simple README.md"; \
-		echo "# AWS GenAI RAG Workshop 2025" > $@; \
-		echo "" >> $@; \
-		echo "This project requires pandoc to generate the full README.md from README.org." >> $@; \
-		echo "Install pandoc or view README.org directly." >> $@; \
-	fi
+	@emacs --batch --eval "(require 'ox-md)" --eval "(find-file \"$<\")" --eval "(org-md-export-to-markdown)"
 
 .venv: README.md
 	@echo "Creating virtual environment with uv..."
@@ -106,11 +98,7 @@ calculate-costs: ## Calculate workshop costs
 ##@ Cleanup
 
 clean: ## Clean generated files and caches
-	find . -type d -name "__pycache__" -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
-	find . -type f -name ".DS_Store" -delete
-	rm -rf .ruff_cache .mypy_cache .pytest_cache
-	rm -rf htmlcov/ .coverage
+	@bash scripts/clean-cache.sh
 
 clean-all: clean ## Clean everything including LocalStack data
 	docker-compose down -v
