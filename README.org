@@ -1,0 +1,234 @@
+#+TITLE: AWS GenAI RAG Workshop 2025
+#+AUTHOR: Jason Walsh
+#+EMAIL: j@wal.sh
+
+* Welcome to the AWS GenAI RAG Workshop!
+
+This hands-on workshop guides you through building production-ready Retrieval Augmented Generation (RAG) systems using AWS services. You'll work with Amazon Bedrock, SageMaker, and supporting services to implement advanced RAG patterns.
+
+** Prerequisites
+
+- Python 3.11+
+- Docker Desktop running
+- AWS CLI v2 configured
+- Basic familiarity with Python and AWS services
+
+** Quick Start
+
+*** 1. Clone and Setup
+#+BEGIN_SRC shell
+git clone https://github.com/jwalsh/aws-genai-rag-workshop-2025.git
+cd aws-genai-rag-workshop-2025
+make dev-install
+#+END_SRC
+
+*** 2. Start LocalStack
+#+BEGIN_SRC shell
+make localstack-up
+#+END_SRC
+
+*** 3. Run Your First RAG Pipeline
+#+BEGIN_SRC shell
+make run-rag-pipeline
+#+END_SRC
+
+** Workshop Modules
+
+*** Module 1: RAG Basics (=notebooks/01_rag_basics.org=)
+- Document chunking strategies
+- Embedding generation with Bedrock
+- Vector storage and retrieval
+- Basic RAG pipeline implementation
+
+*** Module 2: Advanced RAG (=notebooks/02_advanced_rag.org=)
+- Reranking for improved relevance
+- Hybrid search (keyword + semantic)
+- RAG evaluation metrics
+- Query expansion techniques
+
+*** Module 3: Text-to-SQL (=notebooks/03_text_to_sql.org=)
+- Natural language database queries
+- SQL agent with Bedrock
+- Schema understanding
+- Query optimization
+
+*** Module 4: Fine-Tuning (=notebooks/04_fine_tuning.org=)
+- SageMaker integration
+- Domain-specific model adaptation
+- Training data preparation
+- Deployment strategies
+
+*** Module 5: Cost Analysis (=notebooks/05_cost_analysis.org=)
+- AWS pricing calculator integration
+- Cost optimization strategies
+- Resource monitoring
+- Budget alerts
+
+** Available Commands
+
+*** Development
+#+BEGIN_SRC shell
+make help              # Show all available commands
+make dev-install       # Install all dependencies
+make test             # Run test suite
+make lint             # Check code quality
+make format           # Auto-format code
+#+END_SRC
+
+*** Workshop Exercises
+#+BEGIN_SRC shell
+make notebook         # Start Jupyter for notebooks
+make run-rag-pipeline # Demo RAG pipeline
+make run-sql-agent    # Demo SQL agent
+make calculate-costs  # Estimate AWS costs
+#+END_SRC
+
+*** LocalStack Management
+#+BEGIN_SRC shell
+make localstack-up    # Start local AWS services
+make localstack-down  # Stop LocalStack
+make localstack-logs  # View service logs
+#+END_SRC
+
+** Working with Org-Mode Notebooks
+
+Our workshop materials are in .org format (plain text files) containing:
+- Explanatory text and concepts
+- Python code blocks ready to execute
+- Expected outputs and results
+- Hands-on exercises with AWS services
+
+*** Executing Workshop Code
+
+Each notebook contains executable Python code blocks. You can run them in several ways:
+
+**** Option 1: Direct Python Execution
+#+BEGIN_SRC shell
+# Convert org files to Python scripts
+make convert-notebooks
+
+# Run extracted Python code
+python notebooks/01_rag_basics.py
+#+END_SRC
+
+**** Option 2: Copy and Run
+1. Copy code blocks from the .org files
+2. Run in Python REPL or Jupyter notebook
+3. Follow along with explanations
+
+**** Option 3: Use Your Preferred Editor
+The .org files are plain text with markdown-like syntax. Open them in any editor and copy the code blocks marked with =#+BEGIN_SRC python=.
+
+** Common AWS CLI Patterns
+
+*** Working with Bedrock
+#+BEGIN_SRC shell
+# List available models
+aws bedrock list-foundation-models --query 'modelSummaries[?modelId==`anthropic.claude-v2`]'
+
+# Invoke a model
+aws bedrock-runtime invoke-model \
+    --model-id anthropic.claude-v2 \
+    --body '{"prompt": "Human: What is RAG?\n\nAssistant:", "max_tokens_to_sample": 200}' \
+    output.json
+#+END_SRC
+
+*** S3 Operations for RAG
+#+BEGIN_SRC shell
+# Upload documents
+aws s3 cp documents/ s3://workshop-rag-documents/ --recursive
+
+# List embeddings
+aws s3 ls s3://workshop-embeddings/
+#+END_SRC
+
+*** DynamoDB Queries
+#+BEGIN_SRC shell
+# Query vector metadata
+aws dynamodb query \
+    --table-name workshop-vector-metadata \
+    --key-condition-expression "doc_id = :id" \
+    --expression-attribute-values '{":id":{"S":"doc123"}}'
+#+END_SRC
+
+** Project Structure
+
+#+BEGIN_SRC
+.
+├── notebooks/          # Workshop modules (.org format)
+├── src/
+│   ├── rag/           # Core RAG components
+│   ├── agents/        # SQL and reranking agents
+│   ├── guardrails/    # Safety filters
+│   └── utils/         # AWS clients, cost calculator
+├── tests/             # Unit and integration tests
+├── localstack/        # Local AWS setup scripts
+└── Makefile          # Workshop commands
+#+END_SRC
+
+** AWS Services Used
+
+| Service | Purpose | LocalStack | AWS CLI Commands |
+|---------|---------|------------|------------------|
+| Bedrock | LLMs and embeddings | ✓ | =aws bedrock-runtime invoke-model= |
+| S3 | Document storage | ✓ | =aws s3 cp=, =aws s3 ls= |
+| DynamoDB | Metadata store | ✓ | =aws dynamodb query= |
+| SageMaker | Fine-tuning | ✓ | =aws sagemaker create-training-job= |
+| RDS | SQL demos | ✓ | =aws rds describe-db-instances= |
+
+** Tips for Success
+
+1. *Start with LocalStack*: All exercises work locally first
+2. *Run tests frequently*: =make test= after changes
+3. *Use the todo system*: Track your progress in exercises
+4. *Experiment freely*: LocalStack resets with =make localstack-down=
+5. *Check costs*: Run =make calculate-costs= before AWS deployment
+
+** Troubleshooting
+
+*** LocalStack won't start
+#+BEGIN_SRC shell
+docker system prune -a
+make localstack-up
+#+END_SRC
+
+*** Import errors
+#+BEGIN_SRC shell
+make clean
+make dev-install
+#+END_SRC
+
+*** AWS CLI issues
+#+BEGIN_SRC shell
+# Check AWS CLI version
+aws --version
+
+# Verify credentials
+aws sts get-caller-identity
+
+# Use LocalStack endpoint
+aws --endpoint-url=http://localhost:4566 s3 ls
+#+END_SRC
+
+*** Notebook execution issues
+- Ensure kernel uses correct Python environment
+- Check LocalStack is running: =docker ps=
+
+** Resources
+
+- [[https://docs.aws.amazon.com/bedrock/][Amazon Bedrock Documentation]]
+- [[https://langchain.readthedocs.io/][LangChain Documentation]]
+- [[https://www.localstack.cloud/][LocalStack Documentation]]
+- [[https://awscli.amazonaws.com/v2/documentation/api/latest/reference/][AWS CLI v2 Reference]]
+
+** Support
+
+- Workshop issues: [[https://github.com/jwalsh/aws-genai-rag-workshop-2025/issues][GitHub Issues]]
+- AWS questions: Use workshop Slack channel
+- Live help: Ask instructors during sessions
+
+---
+
+*Happy Learning!* 🚀
+
+Remember: The goal is to understand RAG patterns you can apply in production, not just complete exercises.

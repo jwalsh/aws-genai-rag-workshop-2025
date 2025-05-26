@@ -37,6 +37,10 @@ htmlcov/
 # LocalStack
 localstack/volume/
 
+# Support directories
+.tmp/
+.support/
+
 # Environment
 .env
 .env.local
