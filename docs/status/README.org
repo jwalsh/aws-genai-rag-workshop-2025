@@ -17,34 +17,47 @@ This directory contains session logs and status updates for the AWS GenAI RAG Wo
 
 ** Notebooks
 - [X] Module 1: RAG Basics (01_rag_basics.org) - Complete with tangle support
-- [X] Module 2: Advanced RAG (02_advanced_rag.org) - Started, needs completion
-- [ ] Module 3: Text-to-SQL (03_text_to_sql.org)
-- [ ] Module 4: Fine-Tuning (04_fine_tuning.org)
-- [ ] Module 5: Cost Analysis (05_cost_analysis.org)
+- [X] Module 2: Advanced RAG (02_advanced_rag.org) - Needs Bedrock integration (Issue #17)
+- [ ] Module 3: Text-to-SQL (03_text_to_sql.org) - Decision needed (Issue #15)
+- [ ] Module 4: Fine-Tuning (04_fine_tuning.org) - Not started
+- [ ] Module 5: Cost Analysis (05_cost_analysis.org) - Dashboard planned (Issue #18)
 
 ** Infrastructure
 - [X] Repository structure
 - [X] GitHub setup with issues
 - [X] Development environment (direnv, uv)
 - [X] Documentation framework
-- [ ] LocalStack validation
+- [X] Dependencies fixed (pyproject.toml)
+- [X] Code quality baseline (ruff linting - 237 issues fixed)
+- [ ] LocalStack validation (Issue #16)
 - [ ] CI/CD pipeline
 - [ ] Automated testing
+- [ ] Environment setup docs (Issue #14)
+- [ ] .env.example file (Issue #13)
 
 ** Code Implementation
-- [ ] Core RAG pipeline (src/rag/)
-- [ ] SQL agent (src/agents/)
-- [ ] Guardrails (src/guardrails/)
-- [ ] Cost calculator (src/utils/)
+- [X] Core RAG pipeline (src/rag/) - Basic structure implemented
+- [X] SQL agent (src/agents/) - Basic structure implemented
+- [X] Guardrails (src/guardrails/) - Basic structure implemented
+- [X] Cost calculator (src/utils/) - Basic structure implemented
 - [ ] Integration tests
 - [ ] Performance benchmarks
+- [ ] AWS Bedrock integration examples (Issue #17)
 
-* Critical Path Items
+** Documentation
+- [X] Main README.org
+- [X] Presentation PDF with improvements
+- [X] Session logs and status tracking
+- [ ] Setup instructions (Issue #14)
+- [ ] API documentation
 
-1. *LocalStack Testing* - Blocked by Docker
-2. *Complete Notebooks 3-5* - Required for workshop
-3. *Implement Core Code* - src/ modules need implementation
-4. *Integration Tests* - Validate end-to-end functionality
+* Critical Path Items (Before May 29 Workshop)
+
+1. *Environment Setup* (Issue #14) - Create setup instructions
+2. *Environment Variables* (Issue #13) - Create .env.example file  
+3. *LocalStack Testing* (Issue #16) - Validate AWS service emulation
+4. *Bedrock Integration* (Issue #17) - Add examples to notebooks 1 & 2
+5. *Module 3 Decision* (Issue #15) - Include Text-to-SQL or not?
 
 * Resource Usage
 
@@ -56,11 +69,11 @@ This directory contains session logs and status updates for the AWS GenAI RAG Wo
 
 * Next Session Priorities
 
-1. Ensure Docker is running
-2. Configure AWS credentials
-3. Test LocalStack setup
-4. Complete remaining notebooks
-5. Implement core RAG pipeline
+1. Complete setup instructions (Issue #14)
+2. Create .env.example file (Issue #13)
+3. Test LocalStack integration (Issue #16)
+4. Add Bedrock examples to notebooks (Issue #17)
+5. Fix remaining 4 linting issues manually
 
 * Session Logs
 
