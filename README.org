@@ -35,7 +35,12 @@ make setup  # Or: make deps
 make localstack-up
 #+END_SRC
 
-*** 3. Run Your First RAG Pipeline
+*** 3. Download Sample Data (Optional)
+#+BEGIN_SRC shell
+make download-data  # Downloads Roget's Thesaurus PDF
+#+END_SRC
+
+*** 4. Run Your First RAG Pipeline
 #+BEGIN_SRC shell
 make run-rag-pipeline
 #+END_SRC
@@ -86,6 +91,7 @@ make format           # Auto-format code
 *** Workshop Exercises
 #+BEGIN_SRC shell
 make notebook         # Start Jupyter for notebooks
+make download-data    # Download sample PDFs
 make run-rag-pipeline # Demo RAG pipeline
 make run-sql-agent    # Demo SQL agent
 make calculate-costs  # Estimate AWS costs

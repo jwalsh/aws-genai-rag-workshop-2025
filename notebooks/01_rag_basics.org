@@ -45,6 +45,8 @@ print(f"  Embedding model: {EMBEDDING_MODEL}")
 
 Let's download a sample PDF document (Roget's Thesaurus) to use for our RAG pipeline demonstrations.
 
+Note: You can also download this file at the project level using: =make data/rogets_thesaurus.pdf=
+
 #+BEGIN_SRC shell :dir 01_rag_basics :mkdirp yes
 # Create data directory if it doesn't exist
 mkdir -p data
@@ -137,7 +139,10 @@ class PDFExtractor:
 # Example usage
 if __name__ == "__main__":
     # Check if our sample PDF exists
+    # First check local notebook data, then project data directory
     pdf_path = "data/rogets_thesaurus.pdf"
+    if not os.path.exists(pdf_path):
+        pdf_path = "../../data/rogets_thesaurus.pdf"
     
     if os.path.exists(pdf_path):
         try:
