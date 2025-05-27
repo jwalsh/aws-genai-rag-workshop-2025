@@ -2,7 +2,7 @@
 name = "aws-genai-rag-workshop"
 version = "0.1.0"
 description = "Building Production-Ready Advanced Gen AI Applications Workshop"
-readme = "README.org"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "boto3>=1.34.0",
@@ -21,6 +21,9 @@ dependencies = [
     "awscli-local>=0.22.0",
     "localstack>=3.5.0",
     "psycopg2-binary>=2.9.0",
+    "rank-bm25>=0.2.2",
+    "rouge>=1.0.1",
+    "spacy>=3.7.0",
 ]
 
 [project.optional-dependencies]
@@ -46,6 +49,9 @@ sagemaker = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
 
 [tool.ruff]
 line-length = 100
