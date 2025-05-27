@@ -1,9 +1,9 @@
 """Cost calculator for AWS GenAI services."""
-from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
-import json
-import pandas as pd
 from datetime import datetime, timedelta
+
+import pandas as pd
+
 
 @dataclass
 class ModelPricing:
@@ -15,7 +15,7 @@ class ModelPricing:
 
 class AWSCostCalculator:
     """Calculator for AWS GenAI service costs."""
-    
+
     # AWS Bedrock pricing as of 2025-05
     BEDROCK_PRICING = {
         "anthropic.claude-3-opus-20240229": ModelPricing(
@@ -44,39 +44,39 @@ class AWSCostCalculator:
             output_price_per_1k_tokens=0.0
         )
     }
-    
+
     # Storage pricing
     S3_STORAGE_PRICE_PER_GB = 0.023  # Standard storage
     S3_REQUEST_PRICE = {
         "PUT": 0.005 / 1000,  # per request
         "GET": 0.0004 / 1000  # per request
     }
-    
+
     def __init__(self):
         self.usage_history = []
-    
+
     def estimate_tokens(self, text: str) -> int:
         """Estimate token count for text (rough approximation)."""
         # Rough estimate: ~4 characters per token
         return len(text) // 4
-    
+
     def calculate_llm_cost(
         self,
         model_id: str,
         input_text: str,
         output_text: str
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Calculate cost for LLM usage."""
         if model_id not in self.BEDROCK_PRICING:
             raise ValueError(f"Unknown model: {model_id}")
-        
+
         pricing = self.BEDROCK_PRICING[model_id]
         input_tokens = self.estimate_tokens(input_text)
         output_tokens = self.estimate_tokens(output_text)
-        
+
         input_cost = (input_tokens / 1000) * pricing.input_price_per_1k_tokens
         output_cost = (output_tokens / 1000) * pricing.output_price_per_1k_tokens
-        
+
         return {
             "model_id": model_id,
             "input_tokens": input_tokens,
@@ -85,21 +85,21 @@ class AWSCostCalculator:
             "output_cost": output_cost,
             "total_cost": input_cost + output_cost
         }
-    
+
     def calculate_embedding_cost(
         self,
         model_id: str,
-        texts: List[str]
-    ) -> Dict[str, float]:
+        texts: list[str]
+    ) -> dict[str, float]:
         """Calculate cost for embedding generation."""
         if model_id not in self.BEDROCK_PRICING:
             raise ValueError(f"Unknown embedding model: {model_id}")
-        
+
         pricing = self.BEDROCK_PRICING[model_id]
         total_tokens = sum(self.estimate_tokens(text) for text in texts)
-        
+
         cost = (total_tokens / 1000) * pricing.input_price_per_1k_tokens
-        
+
         return {
             "model_id": model_id,
             "num_texts": len(texts),
@@ -107,19 +107,19 @@ class AWSCostCalculator:
             "total_cost": cost,
             "cost_per_text": cost / len(texts) if texts else 0
         }
-    
+
     def calculate_storage_cost(
         self,
         storage_gb: float,
         read_requests: int,
         write_requests: int,
         days: int = 30
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Calculate S3 storage costs."""
         storage_cost = storage_gb * self.S3_STORAGE_PRICE_PER_GB * (days / 30)
         read_cost = read_requests * self.S3_REQUEST_PRICE["GET"]
         write_cost = write_requests * self.S3_REQUEST_PRICE["PUT"]
-        
+
         return {
             "storage_gb": storage_gb,
             "storage_cost": storage_cost,
@@ -129,22 +129,22 @@ class AWSCostCalculator:
             "write_cost": write_cost,
             "total_cost": storage_cost + read_cost + write_cost
         }
-    
-    def track_usage(self, usage_data: Dict):
+
+    def track_usage(self, usage_data: dict):
         """Track usage for monitoring."""
         usage_data["timestamp"] = datetime.now().isoformat()
         self.usage_history.append(usage_data)
-    
+
     def get_usage_summary(self, days: int = 7) -> pd.DataFrame:
         """Get usage summary for the last N days."""
         if not self.usage_history:
             return pd.DataFrame()
-        
+
         df = pd.DataFrame(self.usage_history)
         df['timestamp'] = pd.to_datetime(df['timestamp'])
-        
+
         # Filter to last N days
         cutoff = datetime.now() - timedelta(days=days)
         df = df[df['timestamp'] >= cutoff]
-        
+
         return df
