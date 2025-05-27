@@ -21,7 +21,7 @@ help: ## Show this help message
 
 ##@ Setup
 
-setup: ## Run initial setup (creates venv and installs all dependencies)
+setup: README.md ## Run initial setup (creates venv and installs all dependencies)
 	@bash scripts/setup.sh
 
 deps: dev-install ## Install all dependencies (alias for dev-install)

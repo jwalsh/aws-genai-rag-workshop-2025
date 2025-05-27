@@ -50,7 +50,6 @@ fi
 echo ""
 echo "🧹 Cleaning up existing environment..."
 rm -rf .venv
-rm -f README.md  # Force regeneration
 
 # Create virtual environment
 echo ""
