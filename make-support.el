@@ -36,10 +36,11 @@
       (when (file-exists-p file)
         (message "Tangling %s..." file)
         (condition-case err
-            (let ((tangled-files (org-tangle-to-subdirectory file)))
-              (if tangled-files
-                  (message "Tangled %d code blocks from %s" (length tangled-files) file)
-                (message "Tangled 0 code blocks from %s" file)))
+            (with-current-buffer (find-file-noselect file)
+              (let ((tangled-files (org-babel-tangle)))
+                (if tangled-files
+                    (message "Tangled %d code blocks from %s" (length tangled-files) file)
+                  (message "Tangled 0 code blocks from %s" file))))
           (error (message "Error tangling %s: %s" file (error-message-string err))))))))
 
 (defun batch-org-lint ()
@@ -76,6 +77,36 @@
                 (org-export-to-file 'md output-file)
                 (message "  Created %s" output-file)))
           (error (message "  Error: %s" (error-message-string err))))))))
+
+;; Enable Babel languages
+(org-babel-do-load-languages
+ 'org-babel-load-languages
+ '((python . t)
+   (shell . t)))
+
+;; Optional: Set Python interpreter (if you want to specify)
+(setq org-babel-python-command "python3")
+
+;; Optional: Don't ask for confirmation when executing code blocks
+(setq org-confirm-babel-evaluate nil)
+
+;; Optional: Set default header arguments for specific languages
+(setq org-babel-default-header-args:python
+      '((:results . "output")
+        (:session . "python-default")))
+
+(setq org-babel-default-header-args:shell
+      '((:results . "output")
+        (:shebang . "#!/bin/bash")))
+
+;; Optional: Enable :mkdirp globally for all blocks
+(setq org-babel-default-header-args
+      (cons '(:mkdirp . "yes")
+            org-babel-default-header-args))
+
+;; Optional: Set up tangling defaults
+(setq org-src-preserve-indentation t)  ; Preserve indentation when tangling
+(setq org-edit-src-content-indentation 0)  ; Don't indent src block content
 
 (provide 'make-support)
 ;;; make-support.el ends here

@@ -1,7 +1,7 @@
 #+TITLE: Module 1: RAG Basics
 #+AUTHOR: Jason Walsh
 #+EMAIL: j@wal.sh
-#+PROPERTY: header-args:python :tangle yes :results output
+#+PROPERTY: header-args:python :tangle yes :results output :mkdirp yes
 
 * Introduction to RAG
 
@@ -19,7 +19,7 @@ Retrieval Augmented Generation (RAG) combines the power of large language models
 
 First, let's set up our environment and import necessary libraries.
 
-#+BEGIN_SRC python :tangle setup.py
+#+BEGIN_SRC python :tangle 01_rag_basics/setup.py
 import os
 import boto3
 from typing import List, Dict, Optional
@@ -41,11 +41,124 @@ print(f"  Chunk overlap: {CHUNK_OVERLAP}")
 print(f"  Embedding model: {EMBEDDING_MODEL}")
 #+END_SRC
 
+* Sample Data Download
+
+Let's download a sample PDF document (Roget's Thesaurus) to use for our RAG pipeline demonstrations.
+
+#+BEGIN_SRC shell :dir 01_rag_basics :mkdirp yes
+# Create data directory if it doesn't exist
+mkdir -p data
+
+# Check if file already exists
+if [ -f data/rogets_thesaurus.pdf ]; then
+    echo "PDF already exists, skipping download."
+    ls -lh data/rogets_thesaurus.pdf
+else
+    echo "Downloading Roget's Thesaurus PDF..."
+    # Download from Internet Archive
+    curl -L "https://ia903407.us.archive.org/30/items/thesaurusofengli00roge_1/thesaurusofengli00roge_1.pdf" \
+         -o data/rogets_thesaurus.pdf
+    
+    # Check if download was successful
+    if [ -f data/rogets_thesaurus.pdf ]; then
+        echo "Download successful!"
+        ls -lh data/rogets_thesaurus.pdf
+    else
+        echo "Download failed!"
+        exit 1
+    fi
+fi
+#+END_SRC
+
+For processing PDFs in our RAG pipeline, we'll also create a simple PDF text extractor:
+
+#+BEGIN_SRC python :tangle 01_rag_basics/pdf_extractor.py
+import os
+from typing import List, Optional
+try:
+    import PyPDF2
+except ImportError:
+    print("PyPDF2 not installed. Run: pip install PyPDF2")
+    PyPDF2 = None
+
+class PDFExtractor:
+    """Extract text from PDF files for RAG processing."""
+    
+    def __init__(self):
+        if PyPDF2 is None:
+            raise ImportError("PyPDF2 is required for PDF extraction")
+    
+    def extract_text(self, pdf_path: str, max_pages: Optional[int] = None) -> str:
+        """Extract text from PDF file."""
+        if not os.path.exists(pdf_path):
+            raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+        
+        text_content = []
+        
+        with open(pdf_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            num_pages = len(pdf_reader.pages)
+            
+            if max_pages:
+                num_pages = min(num_pages, max_pages)
+            
+            for page_num in range(num_pages):
+                page = pdf_reader.pages[page_num]
+                text = page.extract_text()
+                if text.strip():
+                    text_content.append(f"--- Page {page_num + 1} ---\n{text}")
+        
+        return "\n\n".join(text_content)
+    
+    def extract_pages(self, pdf_path: str, start_page: int = 0, 
+                      end_page: Optional[int] = None) -> List[str]:
+        """Extract specific pages from PDF."""
+        if not os.path.exists(pdf_path):
+            raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+        
+        pages = []
+        
+        with open(pdf_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            total_pages = len(pdf_reader.pages)
+            
+            if end_page is None:
+                end_page = total_pages
+            else:
+                end_page = min(end_page, total_pages)
+            
+            for page_num in range(start_page, end_page):
+                page = pdf_reader.pages[page_num]
+                text = page.extract_text()
+                pages.append(text)
+        
+        return pages
+
+# Example usage
+if __name__ == "__main__":
+    # Check if our sample PDF exists
+    pdf_path = "data/rogets_thesaurus.pdf"
+    
+    if os.path.exists(pdf_path):
+        try:
+            extractor = PDFExtractor()
+            # Extract first 5 pages as a sample
+            text = extractor.extract_text(pdf_path, max_pages=5)
+            print(f"Extracted {len(text)} characters from first 5 pages")
+            print("\nFirst 500 characters:")
+            print(text[:500])
+        except Exception as e:
+            print(f"Error extracting PDF: {e}")
+    else:
+        print(f"Sample PDF not found at {pdf_path}")
+        print("Run the shell block above to download it.")
+#+END_SRC
+
 * Document Chunking
 
 Let's implement a simple document chunker that splits text into overlapping chunks.
 
-#+BEGIN_SRC python :tangle chunking.py
+#+BEGIN_SRC python :tangle 01_rag_basics/chunking.py
 from typing import List, Dict, Any
 
 class SimpleChunker:
@@ -94,7 +207,7 @@ if __name__ == "__main__":
 
 Now let's create embeddings for our text chunks using a local model.
 
-#+BEGIN_SRC python :tangle embeddings.py
+#+BEGIN_SRC python :tangle 01_rag_basics/embeddings.py
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from typing import List, Union
@@ -150,7 +263,7 @@ if __name__ == "__main__":
 
 Let's implement a simple vector store using FAISS for efficient similarity search.
 
-#+BEGIN_SRC python :tangle vector_store.py
+#+BEGIN_SRC python :tangle 01_rag_basics/vector_store.py
 import faiss
 import numpy as np
 import pickle
@@ -254,7 +367,7 @@ if __name__ == "__main__":
 
 Now let's combine all components into a simple RAG pipeline.
 
-#+BEGIN_SRC python :tangle rag_pipeline.py
+#+BEGIN_SRC python :tangle 01_rag_basics/rag_pipeline.py
 import os
 from typing import List, Dict, Optional
 from chunking import SimpleChunker
@@ -377,7 +490,7 @@ Replace the local embedding model with Amazon Bedrock's Titan Embeddings.
 
 Let's enhance our RAG pipeline to work with AWS services, both locally via LocalStack and with real AWS.
 
-#+BEGIN_SRC python :tangle aws_rag_integration.py
+#+BEGIN_SRC python :tangle 01_rag_basics/aws_rag_integration.py
 import os
 import json
 import boto3
@@ -513,7 +626,7 @@ if __name__ == "__main__":
 
 Understanding AWS costs is crucial for production RAG systems.
 
-#+BEGIN_SRC python :tangle cost_analysis.py
+#+BEGIN_SRC python :tangle 01_rag_basics/cost_analysis.py
 from typing import Dict, List
 
 class RAGCostEstimator:
@@ -614,7 +727,7 @@ if __name__ == "__main__":
 
 Let's demonstrate integration with the existing project structure.
 
-#+BEGIN_SRC python :tangle project_integration.py
+#+BEGIN_SRC python :tangle 01_rag_basics/project_integration.py
 import sys
 import os
 
