@@ -23,20 +23,24 @@ def get_aws_client(service_name: str, **kwargs) -> Any:
     config.update(kwargs)
     return boto3.client(service_name, **config)
 
+
 @cache
 def get_bedrock_runtime_client():
     """Get Bedrock runtime client."""
     return get_aws_client("bedrock-runtime")
+
 
 @cache
 def get_s3_client():
     """Get S3 client."""
     return get_aws_client("s3")
 
+
 @cache
 def get_dynamodb_client():
     """Get DynamoDB client."""
     return get_aws_client("dynamodb")
+
 
 @cache
 def get_sagemaker_client():

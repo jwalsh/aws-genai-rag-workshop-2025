@@ -36,13 +36,12 @@ class TextToSQLDemo:
         try:
             print("🔧 Initializing Text-to-SQL Agent...")
             self.sql_agent = SQLAgent(
-                db_connection_params=self.db_params,
-                aws_endpoint_url=self.aws_endpoint
+                db_connection_params=self.db_params, aws_endpoint_url=self.aws_endpoint
             )
 
             # Refresh schema cache
             print("📊 Loading database schema...")
-            self.sql_agent.refresh_schema('workshop')
+            self.sql_agent.refresh_schema("workshop")
 
             print("✅ SQL Agent initialized successfully!")
             print(f"📋 Cached schema for {len(self.sql_agent.schema_cache)} tables\n")
@@ -72,14 +71,14 @@ class TextToSQLDemo:
                 "products": "SELECT COUNT(*) FROM workshop.products",
                 "orders": "SELECT COUNT(*) FROM workshop.orders",
                 "order_items": "SELECT COUNT(*) FROM workshop.order_items",
-                "suppliers": "SELECT COUNT(*) FROM workshop.suppliers"
+                "suppliers": "SELECT COUNT(*) FROM workshop.suppliers",
             }
 
             print("📈 Sample Data Counts:")
             for table, query in sample_queries.items():
                 result = self.sql_agent._execute_query(query)
                 if result.success and result.data:
-                    count = result.data[0]['count']
+                    count = result.data[0]["count"]
                     print(f"   {table:15}: {count:>6} records")
             print()
 
@@ -103,32 +102,28 @@ class TextToSQLDemo:
                 "Show me all products in the Electronics category",
                 "What customers are from California?",
             ],
-
             "📈 Aggregation & Analytics": [
                 "What are the top 5 best-selling products?",
                 "Who are our top 3 customers by total spending?",
                 "What's the average order value?",
                 "Show me total revenue by product category",
             ],
-
             "🔗 Join Queries": [
                 "Show me customer names and their order counts",
                 "Which products have never been ordered?",
                 "List all orders with customer and product details",
             ],
-
             "📅 Time-Based Queries": [
                 "Show me orders placed in November 2024",
                 "What's our revenue for the last 30 days?",
                 "Find customers who haven't ordered in the past month",
             ],
-
             "🎯 Advanced Analytics": [
                 "Which customers have ordered from multiple categories?",
                 "What's the profit margin for each product?",
                 "Show me monthly sales trends",
                 "Find suppliers with the most expensive products on average",
-            ]
+            ],
         }
 
         for category, queries in demo_categories.items():
@@ -151,7 +146,7 @@ class TextToSQLDemo:
                 print("   ✅ Generated SQL:")
                 # Format SQL nicely
                 formatted_sql = self._format_sql(result.query)
-                for line in formatted_sql.split('\n'):
+                for line in formatted_sql.split("\n"):
                     print(f"      {line}")
 
                 if result.data:
@@ -169,25 +164,29 @@ class TextToSQLDemo:
                 print(f"   ⏱️  Execution time: {execution_time:.3f}s")
 
                 # Store result for summary
-                self.demo_results.append({
-                    'query': query,
-                    'success': True,
-                    'sql': result.query,
-                    'result_count': len(result.data) if result.data else 0,
-                    'execution_time': execution_time
-                })
+                self.demo_results.append(
+                    {
+                        "query": query,
+                        "success": True,
+                        "sql": result.query,
+                        "result_count": len(result.data) if result.data else 0,
+                        "execution_time": execution_time,
+                    }
+                )
 
             else:
                 print(f"   ❌ Error: {result.error}")
                 if result.query:
                     print(f"   Generated SQL: {result.query}")
 
-                self.demo_results.append({
-                    'query': query,
-                    'success': False,
-                    'error': result.error,
-                    'execution_time': execution_time
-                })
+                self.demo_results.append(
+                    {
+                        "query": query,
+                        "success": False,
+                        "error": result.error,
+                        "execution_time": execution_time,
+                    }
+                )
 
         except Exception as e:
             print(f"   ❌ Unexpected error: {e}")
@@ -199,9 +198,19 @@ class TextToSQLDemo:
         sql = sql.strip()
 
         # Add line breaks after common SQL keywords
-        keywords = ['SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 'HAVING', 'JOIN', 'LEFT JOIN', 'RIGHT JOIN']
+        keywords = [
+            "SELECT",
+            "FROM",
+            "WHERE",
+            "GROUP BY",
+            "ORDER BY",
+            "HAVING",
+            "JOIN",
+            "LEFT JOIN",
+            "RIGHT JOIN",
+        ]
         for keyword in keywords:
-            sql = sql.replace(f' {keyword} ', f'\n{keyword} ')
+            sql = sql.replace(f" {keyword} ", f"\n{keyword} ")
 
         return sql
 
@@ -231,27 +240,29 @@ class TextToSQLDemo:
         print("=" * 60)
 
         total_queries = len(self.demo_results)
-        successful_queries = sum(1 for r in self.demo_results if r.get('success', False))
+        successful_queries = sum(1 for r in self.demo_results if r.get("success", False))
 
         print(f"Total Queries Tested: {total_queries}")
         print(f"Successful Queries: {successful_queries}")
         print(f"Success Rate: {(successful_queries/total_queries)*100:.1f}%")
 
         if successful_queries > 0:
-            successful_results = [r for r in self.demo_results if r.get('success', False)]
-            avg_execution_time = sum(r['execution_time'] for r in successful_results) / len(successful_results)
-            total_results = sum(r.get('result_count', 0) for r in successful_results)
+            successful_results = [r for r in self.demo_results if r.get("success", False)]
+            avg_execution_time = sum(r["execution_time"] for r in successful_results) / len(
+                successful_results
+            )
+            total_results = sum(r.get("result_count", 0) for r in successful_results)
 
             print(f"Average Execution Time: {avg_execution_time:.3f}s")
             print(f"Total Results Retrieved: {total_results}")
 
         # Show failed queries if any
-        failed_queries = [r for r in self.demo_results if not r.get('success', False)]
+        failed_queries = [r for r in self.demo_results if not r.get("success", False)]
         if failed_queries:
             print(f"\n❌ Failed Queries ({len(failed_queries)}):")
             for failed in failed_queries:
                 print(f"   • {failed['query']}")
-                if 'error' in failed:
+                if "error" in failed:
                     print(f"     Error: {failed['error']}")
 
     def run_interactive_mode(self):
@@ -270,13 +281,13 @@ class TextToSQLDemo:
             try:
                 user_query = input("💬 Your question: ").strip()
 
-                if user_query.lower() in ['quit', 'exit', 'q']:
+                if user_query.lower() in ["quit", "exit", "q"]:
                     print("👋 Goodbye!")
                     break
-                elif user_query.lower() == 'help':
+                elif user_query.lower() == "help":
                     self._show_help()
                     continue
-                elif user_query.lower() == 'schema':
+                elif user_query.lower() == "schema":
                     self.display_schema_overview()
                     continue
                 elif not user_query:
@@ -337,7 +348,7 @@ class TextToSQLDemo:
         # Offer interactive mode
         print("\n🎮 Ready for interactive mode!")
         response = input("Would you like to try asking your own questions? (y/n): ").strip().lower()
-        if response in ['y', 'yes']:
+        if response in ["y", "yes"]:
             self.run_interactive_mode()
 
 
@@ -345,15 +356,15 @@ def main():
     """Main function to run the Text-to-SQL demo."""
     # Database configuration
     db_params = {
-        'host': os.getenv('DB_HOST', 'localhost'),
-        'port': int(os.getenv('DB_PORT', '5432')),
-        'database': os.getenv('DB_NAME', 'workshop_db'),
-        'user': os.getenv('DB_USER', 'workshop_user'),
-        'password': os.getenv('DB_PASSWORD', 'workshop_pass')
+        "host": os.getenv("DB_HOST", "localhost"),
+        "port": int(os.getenv("DB_PORT", "5432")),
+        "database": os.getenv("DB_NAME", "workshop_db"),
+        "user": os.getenv("DB_USER", "workshop_user"),
+        "password": os.getenv("DB_PASSWORD", "workshop_pass"),
     }
 
     # AWS configuration (using LocalStack for local development)
-    aws_endpoint = os.getenv('AWS_ENDPOINT_URL', 'http://localhost:4566')
+    aws_endpoint = os.getenv("AWS_ENDPOINT_URL", "http://localhost:4566")
 
     try:
         # Create and run demo

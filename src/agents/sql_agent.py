@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TableInfo:
     """Information about a database table."""
+
     name: str
     columns: list[dict[str, str]]
     foreign_keys: list[dict[str, str]]
@@ -32,6 +33,7 @@ class TableInfo:
 @dataclass
 class QueryResult:
     """Result of a SQL query execution."""
+
     success: bool
     data: list[dict[str, Any]] | None = None
     error: str | None = None
@@ -45,7 +47,7 @@ class DatabaseIntrospector:
     def __init__(self, connection_params: dict[str, str]):
         self.connection_params = connection_params
 
-    def get_schema_info(self, schema_name: str = 'workshop') -> dict[str, TableInfo]:
+    def get_schema_info(self, schema_name: str = "workshop") -> dict[str, TableInfo]:
         """Extract complete schema information."""
         schema_info = {}
 
@@ -53,12 +55,15 @@ class DatabaseIntrospector:
             with psycopg2.connect(**self.connection_params) as conn:
                 with conn.cursor() as cursor:
                     # Get all tables in the schema
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         SELECT table_name
                         FROM information_schema.tables
                         WHERE table_schema = %s AND table_type = 'BASE TABLE'
                         ORDER BY table_name
-                    """, (schema_name,))
+                    """,
+                        (schema_name,),
+                    )
 
                     tables = [row[0] for row in cursor.fetchall()]
 
@@ -74,7 +79,8 @@ class DatabaseIntrospector:
     def _get_table_info(self, cursor, schema_name: str, table_name: str) -> TableInfo:
         """Get detailed information about a specific table."""
         # Get column information
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 column_name,
                 data_type,
@@ -84,21 +90,24 @@ class DatabaseIntrospector:
             FROM information_schema.columns
             WHERE table_schema = %s AND table_name = %s
             ORDER BY ordinal_position
-        """, (schema_name, table_name))
+        """,
+            (schema_name, table_name),
+        )
 
         columns = []
         for row in cursor.fetchall():
             col_info = {
-                'name': row[0],
-                'type': row[1],
-                'nullable': row[2] == 'YES',
-                'default': row[3],
-                'max_length': row[4]
+                "name": row[0],
+                "type": row[1],
+                "nullable": row[2] == "YES",
+                "default": row[3],
+                "max_length": row[4],
             }
             columns.append(col_info)
 
         # Get foreign key relationships
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 kcu.column_name,
                 ccu.table_name AS foreign_table_name,
@@ -113,22 +122,16 @@ class DatabaseIntrospector:
             WHERE tc.constraint_type = 'FOREIGN KEY'
                 AND tc.table_schema = %s
                 AND tc.table_name = %s
-        """, (schema_name, table_name))
+        """,
+            (schema_name, table_name),
+        )
 
         foreign_keys = []
         for row in cursor.fetchall():
-            fk_info = {
-                'column': row[0],
-                'references_table': row[1],
-                'references_column': row[2]
-            }
+            fk_info = {"column": row[0], "references_table": row[1], "references_column": row[2]}
             foreign_keys.append(fk_info)
 
-        return TableInfo(
-            name=table_name,
-            columns=columns,
-            foreign_keys=foreign_keys
-        )
+        return TableInfo(name=table_name, columns=columns, foreign_keys=foreign_keys)
 
 
 class SQLSecurityValidator:
@@ -136,18 +139,18 @@ class SQLSecurityValidator:
 
     # Dangerous SQL patterns that should be blocked
     DANGEROUS_PATTERNS = [
-        r'\bDROP\b',
-        r'\bDELETE\b(?!\s+.*\bWHERE\b)',  # DELETE without WHERE
-        r'\bTRUNCATE\b',
-        r'\bALTER\b',
-        r'\bCREATE\b',
-        r'\bINSERT\b',
-        r'\bUPDATE\b(?!\s+.*\bWHERE\b)',  # UPDATE without WHERE
-        r'\bGRANT\b',
-        r'\bREVOKE\b',
-        r';.*?;',  # Multiple statements
-        r'--',     # SQL comments
-        r'/\*.*?\*/',  # Block comments
+        r"\bDROP\b",
+        r"\bDELETE\b(?!\s+.*\bWHERE\b)",  # DELETE without WHERE
+        r"\bTRUNCATE\b",
+        r"\bALTER\b",
+        r"\bCREATE\b",
+        r"\bINSERT\b",
+        r"\bUPDATE\b(?!\s+.*\bWHERE\b)",  # UPDATE without WHERE
+        r"\bGRANT\b",
+        r"\bREVOKE\b",
+        r";.*?;",  # Multiple statements
+        r"--",  # SQL comments
+        r"/\*.*?\*/",  # Block comments
     ]
 
     def validate_query(self, query: str) -> tuple[bool, str | None]:
@@ -163,7 +166,7 @@ class SQLSecurityValidator:
         query_upper = query.upper().strip()
 
         # Check if query starts with SELECT
-        if not query_upper.startswith('SELECT'):
+        if not query_upper.startswith("SELECT"):
             return False, "Only SELECT queries are allowed"
 
         # Check for dangerous patterns
@@ -172,7 +175,7 @@ class SQLSecurityValidator:
                 return False, f"Query contains potentially dangerous pattern: {pattern}"
 
         # Check for excessive complexity (simple heuristics)
-        if query.count('(') > 10 or query.count('JOIN') > 5:
+        if query.count("(") > 10 or query.count("JOIN") > 5:
             return False, "Query is too complex"
 
         if len(query) > 2000:
@@ -184,11 +187,9 @@ class SQLSecurityValidator:
 class BedrockNL2SQL:
     """Natural Language to SQL conversion using AWS Bedrock."""
 
-    def __init__(self, region_name: str = 'us-east-1', endpoint_url: str | None = None):
+    def __init__(self, region_name: str = "us-east-1", endpoint_url: str | None = None):
         self.bedrock = boto3.client(
-            'bedrock-runtime',
-            region_name=region_name,
-            endpoint_url=endpoint_url
+            "bedrock-runtime", region_name=region_name, endpoint_url=endpoint_url
         )
         self.model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
 
@@ -219,24 +220,21 @@ SQL Query:"""
                 modelId=self.model_id,
                 contentType="application/json",
                 accept="application/json",
-                body=json.dumps({
-                    "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": 1000,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": prompt
-                        }
-                    ]
-                })
+                body=json.dumps(
+                    {
+                        "anthropic_version": "bedrock-2023-05-31",
+                        "max_tokens": 1000,
+                        "messages": [{"role": "user", "content": prompt}],
+                    }
+                ),
             )
 
-            response_body = json.loads(response['body'].read())
-            sql_query = response_body['content'][0]['text'].strip()
+            response_body = json.loads(response["body"].read())
+            sql_query = response_body["content"][0]["text"].strip()
 
             # Clean up the response - remove any markdown formatting
-            sql_query = re.sub(r'```sql\s*', '', sql_query)
-            sql_query = re.sub(r'```\s*$', '', sql_query)
+            sql_query = re.sub(r"```sql\s*", "", sql_query)
+            sql_query = re.sub(r"```\s*$", "", sql_query)
             sql_query = sql_query.strip()
 
             return sql_query
@@ -254,7 +252,7 @@ SQL Query:"""
             schema_text += "Columns:\n"
 
             for col in table_info.columns:
-                nullable = "NULL" if col['nullable'] else "NOT NULL"
+                nullable = "NULL" if col["nullable"] else "NOT NULL"
                 schema_text += f"  - {col['name']} ({col['type']}) {nullable}\n"
 
             if table_info.foreign_keys:
@@ -270,10 +268,12 @@ SQL Query:"""
 class SQLAgent:
     """Main SQL Agent class that orchestrates NL2SQL conversion and execution."""
 
-    def __init__(self,
-                 db_connection_params: dict[str, str],
-                 aws_region: str = 'us-east-1',
-                 aws_endpoint_url: str | None = None):
+    def __init__(
+        self,
+        db_connection_params: dict[str, str],
+        aws_region: str = "us-east-1",
+        aws_endpoint_url: str | None = None,
+    ):
         self.db_params = db_connection_params
         self.introspector = DatabaseIntrospector(db_connection_params)
         self.nl2sql = BedrockNL2SQL(aws_region, aws_endpoint_url)
@@ -281,14 +281,14 @@ class SQLAgent:
         self.schema_cache = None
         self.cache_timestamp = None
 
-    def refresh_schema(self, schema_name: str = 'workshop') -> None:
+    def refresh_schema(self, schema_name: str = "workshop") -> None:
         """Refresh the cached schema information."""
         logger.info("Refreshing database schema cache...")
         self.schema_cache = self.introspector.get_schema_info(schema_name)
         self.cache_timestamp = datetime.now()
         logger.info(f"Cached schema for {len(self.schema_cache)} tables")
 
-    def query(self, natural_language_query: str, schema_name: str = 'workshop') -> QueryResult:
+    def query(self, natural_language_query: str, schema_name: str = "workshop") -> QueryResult:
         """
         Process a natural language query and return results.
 
@@ -317,7 +317,7 @@ class SQLAgent:
                 return QueryResult(
                     success=False,
                     error=f"Generated query failed validation: {error_msg}",
-                    query=sql_query
+                    query=sql_query,
                 )
 
             # Execute the query
@@ -331,7 +331,7 @@ class SQLAgent:
             return QueryResult(
                 success=False,
                 error=str(e),
-                execution_time=(datetime.now() - start_time).total_seconds()
+                execution_time=(datetime.now() - start_time).total_seconds(),
             )
 
     def _execute_query(self, sql_query: str) -> QueryResult:
@@ -352,25 +352,17 @@ class SQLAgent:
                     row_dict = {}
                     for i, value in enumerate(row):
                         # Handle datetime objects
-                        if hasattr(value, 'isoformat'):
+                        if hasattr(value, "isoformat"):
                             row_dict[columns[i]] = value.isoformat()
                         else:
                             row_dict[columns[i]] = value
                     data.append(row_dict)
 
-                return QueryResult(
-                    success=True,
-                    data=data,
-                    query=sql_query
-                )
+                return QueryResult(success=True, data=data, query=sql_query)
 
         except Exception as e:
             logger.error(f"Database query error: {e}")
-            return QueryResult(
-                success=False,
-                error=str(e),
-                query=sql_query
-            )
+            return QueryResult(success=False, error=str(e), query=sql_query)
 
     def get_schema_summary(self) -> str:
         """Get a human-readable summary of the database schema."""
@@ -384,15 +376,16 @@ class SQLAgent:
             summary += f"   Columns: {len(table_info.columns)}\n"
 
             # Show key columns
-            key_columns = [col['name'] for col in table_info.columns[:5]]
+            key_columns = [col["name"] for col in table_info.columns[:5]]
             if len(table_info.columns) > 5:
                 key_columns.append("...")
             summary += f"   Key fields: {', '.join(key_columns)}\n"
 
             # Show relationships
             if table_info.foreign_keys:
-                relationships = [f"{fk['column']} -> {fk['references_table']}"
-                               for fk in table_info.foreign_keys]
+                relationships = [
+                    f"{fk['column']} -> {fk['references_table']}" for fk in table_info.foreign_keys
+                ]
                 summary += f"   Relationships: {', '.join(relationships)}\n"
 
             summary += "\n"
@@ -404,11 +397,11 @@ def main():
     """Example usage of the SQL Agent."""
     # Database connection parameters (adjust for your setup)
     db_params = {
-        'host': 'localhost',
-        'port': 5432,
-        'database': 'workshop_db',
-        'user': 'workshop_user',
-        'password': 'workshop_pass'
+        "host": "localhost",
+        "port": 5432,
+        "database": "workshop_db",
+        "user": "workshop_user",
+        "password": "workshop_pass",
     }
 
     # AWS Bedrock endpoint (use LocalStack for local development)
@@ -428,7 +421,7 @@ def main():
             "What are the top 5 best-selling products?",
             "Find all orders placed in November 2024",
             "Which customers have spent more than $200?",
-            "Show me the total revenue by product category"
+            "Show me the total revenue by product category",
         ]
 
         for query in test_queries:
