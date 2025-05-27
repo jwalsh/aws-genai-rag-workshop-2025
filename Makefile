@@ -94,17 +94,13 @@ tangle: ## Extract code from org notebooks into subdirectories
 
 ##@ Workshop
 
-data/rogets_thesaurus.pdf: ## Download Roget's Thesaurus PDF for RAG examples
-	@mkdir -p data
-	@if [ -f data/rogets_thesaurus.pdf ]; then \
-		echo "✅ Roget's Thesaurus already downloaded"; \
-	else \
-		echo "📥 Downloading Roget's Thesaurus PDF..."; \
-		curl -L "https://ia903407.us.archive.org/30/items/thesaurusofengli00roge_1/thesaurusofengli00roge_1.pdf" \
-			-o data/rogets_thesaurus.pdf && \
-		echo "✅ Download complete!"; \
-	fi
-	@ls -lh data/rogets_thesaurus.pdf
+data:
+	@mkdir -p $@
+
+data/rogets_thesaurus.pdf: | data ## Download Roget's Thesaurus PDF for RAG examples
+	@echo "📥 Downloading Roget's Thesaurus PDF..."
+	@curl -L "https://ia903407.us.archive.org/30/items/thesaurusofengli00roge_1/thesaurusofengli00roge_1.pdf" -o $@
+	@echo "✅ Downloaded: $@"
 
 download-data: data/rogets_thesaurus.pdf ## Download all sample data
 
