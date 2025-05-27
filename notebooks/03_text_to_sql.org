@@ -5,22 +5,23 @@
 
 * Introduction to Text-to-SQL
 
-Text-to-SQL is the task of converting natural language questions into SQL queries. This enables non-technical users to query databases using plain English, making data more accessible across organizations.
+Text-to-SQL bridges the gap between natural language and structured database queries, enabling non-technical users to access data using plain English questions. This module demonstrates building a robust NL2SQL system using AWS Bedrock and PostgreSQL.
 
 ** Key Components
 
-1. *Database Schema Understanding*: Extract and represent table structures
-2. *Natural Language Processing*: Parse user intent from questions
-3. *SQL Generation*: Convert intent to valid SQL queries
-4. *Query Validation*: Ensure generated queries are safe and syntactically correct
-5. *Result Interpretation*: Present results in user-friendly formats
+1. *Database Schema Understanding*: Extract and represent table structures, relationships, and constraints
+2. *Natural Language Processing*: Parse user intent and map to database entities
+3. *SQL Generation*: Convert intent to valid, optimized SQL queries using LLMs
+4. *Query Validation*: Ensure generated queries are safe, syntactically correct, and performant
+5. *Result Interpretation*: Present results in user-friendly formats with context
 
-** Use Cases
+** Real-World Use Cases
 
-- Business analysts querying sales data
-- Customer support accessing user information
-- Executives getting quick insights from company metrics
-- Data exploration without SQL knowledge
+- **Business Analytics**: "What were our top-selling products last quarter?"
+- **Customer Support**: "Show me all orders for customer john.doe@email.com"
+- **Executive Dashboards**: "What's our monthly recurring revenue growth?"
+- **Data Exploration**: "Find customers who haven't ordered in the past 90 days"
+- **Operational Insights**: "Which suppliers have the highest average delivery times?"
 
 * Environment Setup
 
