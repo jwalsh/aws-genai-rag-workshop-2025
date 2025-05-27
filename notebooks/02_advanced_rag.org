@@ -1,7 +1,7 @@
 #+TITLE: Module 2: Advanced RAG Techniques
 #+AUTHOR: Jason Walsh
 #+EMAIL: j@wal.sh
-#+PROPERTY: header-args:python :tangle yes :results output
+#+PROPERTY: header-args:python :tangle yes :results output :mkdirp yes
 
 * Advanced RAG Patterns
 
@@ -15,7 +15,7 @@ Building on the basics, this module explores advanced techniques to improve RAG 
 
 * Setup
 
-#+BEGIN_SRC python :tangle setup.py
+#+BEGIN_SRC python :tangle 02_advanced_rag/setup.py
 import os
 import numpy as np
 from typing import List, Dict, Tuple, Optional
@@ -40,7 +40,7 @@ print(f"  Hybrid search alpha: {HYBRID_ALPHA}")
 
 Cross-encoder reranking significantly improves retrieval quality by considering the full context of query-document pairs.
 
-#+BEGIN_SRC python :tangle reranker.py
+#+BEGIN_SRC python :tangle 02_advanced_rag/reranker.py
 from sentence_transformers import CrossEncoder
 from typing import List, Tuple
 import numpy as np
@@ -104,7 +104,7 @@ if __name__ == "__main__":
 
 Combining keyword-based (BM25) and semantic search often yields better results than either approach alone.
 
-#+BEGIN_SRC python :tangle hybrid_search.py
+#+BEGIN_SRC python :tangle 02_advanced_rag/hybrid_search.py
 from typing import List, Dict, Tuple
 from rank_bm25 import BM25Okapi
 import numpy as np
@@ -202,7 +202,7 @@ if __name__ == "__main__":
 
 Improving retrieval by expanding queries with related terms and concepts.
 
-#+BEGIN_SRC python :tangle query_expansion.py
+#+BEGIN_SRC python :tangle 02_advanced_rag/query_expansion.py
 from typing import List, Set
 import spacy
 from collections import defaultdict
@@ -294,7 +294,7 @@ if __name__ == "__main__":
 
 Implementing metrics to evaluate RAG system performance.
 
-#+BEGIN_SRC python :tangle evaluation.py
+#+BEGIN_SRC python :tangle 02_advanced_rag/evaluation.py
 from typing import List, Dict, Tuple
 import numpy as np
 from collections import Counter
@@ -421,7 +421,7 @@ if __name__ == "__main__":
 
 Combining all advanced techniques into an improved pipeline.
 
-#+BEGIN_SRC python :tangle advanced_pipeline.py
+#+BEGIN_SRC python :tangle 02_advanced_rag/advanced_pipeline.py
 import os
 from typing import List, Dict, Optional, Tuple
 from reranker import CrossEncoderReranker
@@ -600,7 +600,7 @@ if __name__ == "__main__":
 Create a reranker that uses multiple signals (semantic similarity, keyword overlap, entity matching).
 
 ** Exercise 2: Multi-Stage Retrieval
-Implement a retrieval system with coarse-to-fine search: BM25 ’ Semantic ’ Reranking.
+Implement a retrieval system with coarse-to-fine search: BM25 ï¿½ Semantic ï¿½ Reranking.
 
 ** Exercise 3: Query Understanding
 Build a query classifier that determines query type (factual, analytical, comparative) and adjusts retrieval strategy.

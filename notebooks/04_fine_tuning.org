@@ -1,7 +1,7 @@
 #+TITLE: Fine-tuning Models for Domain-Specific RAG
 #+AUTHOR: aygp-dr
 #+DATE: 2025-05-26
-#+PROPERTY: header-args:python :results output :session *fine-tuning* :mkdirp yes
+#+PROPERTY: header-args:python :tangle yes :results output :mkdirp yes
 
 * Overview
 

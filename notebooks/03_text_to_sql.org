@@ -1,7 +1,7 @@
 #+TITLE: Module 3: Text-to-SQL with Natural Language Database Queries
 #+AUTHOR: Jason Walsh
 #+EMAIL: j@wal.sh
-#+PROPERTY: header-args:python :tangle yes :results output :session text-to-sql
+#+PROPERTY: header-args:python :tangle yes :results output :mkdirp yes
 
 * Introduction to Text-to-SQL
 
@@ -27,7 +27,7 @@ Text-to-SQL bridges the gap between natural language and structured database que
 
 Let's start by setting up our environment and importing necessary libraries.
 
-#+BEGIN_SRC python :tangle setup.py
+#+BEGIN_SRC python :tangle 03_text_to_sql/setup.py
 import os
 import sys
 import json
@@ -72,7 +72,7 @@ print(f"AWS Region: {AWS_REGION}")
 
 Before we can convert natural language to SQL, we need to understand our database structure.
 
-#+BEGIN_SRC python :tangle schema_exploration.py
+#+BEGIN_SRC python :tangle 03_text_to_sql/schema_exploration.py
 def explore_database_schema():
     """Explore and document the database schema."""
     try:
@@ -114,7 +114,7 @@ schema_info = explore_database_schema()
 
 Let's examine the sample data to understand the content and relationships.
 
-#+BEGIN_SRC python :tangle data_analysis.py
+#+BEGIN_SRC python :tangle 03_text_to_sql/data_analysis.py
 def analyze_sample_data():
     """Analyze sample data in the database."""
     try:
@@ -198,7 +198,7 @@ analyze_sample_data()
 
 Now let's initialize our SQL Agent and test its basic functionality.
 
-#+BEGIN_SRC python :tangle sql_agent_init.py
+#+BEGIN_SRC python :tangle 03_text_to_sql/sql_agent_init.py
 def initialize_sql_agent():
     """Initialize and test the SQL Agent."""
     try:
@@ -236,7 +236,7 @@ sql_agent = initialize_sql_agent()
 
 Let's test the SQL Agent with various natural language queries.
 
-#+BEGIN_SRC python :tangle nl_query_testing.py
+#+BEGIN_SRC python :tangle 03_text_to_sql/nl_query_testing.py
 def test_natural_language_queries(agent):
     """Test the SQL Agent with various natural language queries."""
     if not agent:
@@ -322,7 +322,7 @@ test_natural_language_queries(sql_agent)
 
 Let's examine the security features of our SQL Agent.
 
-#+BEGIN_SRC python :tangle security_testing.py
+#+BEGIN_SRC python :tangle 03_text_to_sql/security_testing.py
 def test_security_features(agent):
     """Test SQL injection prevention and query validation."""
     if not agent:
@@ -389,7 +389,7 @@ test_security_features(sql_agent)
 
 Let's explore more advanced query patterns and edge cases.
 
-#+BEGIN_SRC python :tangle advanced_patterns.py
+#+BEGIN_SRC python :tangle 03_text_to_sql/advanced_patterns.py
 def test_advanced_query_patterns(agent):
     """Test advanced SQL query patterns and edge cases."""
     if not agent:
@@ -463,7 +463,7 @@ test_advanced_query_patterns(sql_agent)
 
 Let's create an interactive interface for testing custom queries.
 
-#+BEGIN_SRC python :tangle interactive_interface.py
+#+BEGIN_SRC python :tangle 03_text_to_sql/interactive_interface.py
 def create_interactive_interface(agent):
     """Create an interactive interface for testing queries."""
     if not agent:
@@ -542,7 +542,7 @@ print("=� To start the interactive interface, run: create_interactive_interfac
 
 Let's analyze and optimize query performance.
 
-#+BEGIN_SRC python :tangle performance_optimization.py
+#+BEGIN_SRC python :tangle 03_text_to_sql/performance_optimization.py
 def analyze_query_performance(agent):
     """Analyze and optimize query performance."""
     if not agent:

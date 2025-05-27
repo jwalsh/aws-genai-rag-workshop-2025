@@ -1,7 +1,7 @@
 #+TITLE: Cost Analysis for AWS GenAI RAG Applications
 #+AUTHOR: aygp-dr
 #+DATE: 2025-05-26
-#+PROPERTY: header-args:python :results output :session *rag-cost* :mkdirp yes
+#+PROPERTY: header-args:python :tangle yes :results output :mkdirp yes
 
 * Overview
 
