@@ -21,12 +21,20 @@ help: ## Show this help message
 
 ##@ Setup
 
+setup: ## Run initial setup (creates venv and installs all dependencies)
+	@bash scripts/setup.sh
+
+deps: dev-install ## Install all dependencies (alias for dev-install)
+
 install: .venv ## Install production dependencies with uv
 	$(UV) pip sync
 	$(UV) pip install -e .
 
 dev-install: .venv ## Install all dependencies including dev tools
 	$(UV) pip install -e ".[dev,sagemaker]"
+
+dev: dev-install ## Alias for dev-install
+develop: dev-install ## Alias for dev-install
 
 ##@ LocalStack
 

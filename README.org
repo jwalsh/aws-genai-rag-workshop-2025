@@ -27,7 +27,7 @@ This hands-on workshop guides you through building production-ready Retrieval Au
 #+BEGIN_SRC shell
 git clone https://github.com/jwalsh/aws-genai-rag-workshop-2025.git
 cd aws-genai-rag-workshop-2025
-make dev-install
+make setup  # Or: make deps
 #+END_SRC
 
 *** 2. Start LocalStack

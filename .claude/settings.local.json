@@ -6,7 +6,9 @@
       "Bash(gh api:*)",
       "Bash(git stash:*)",
       "Bash(.venv/bin/python:*)",
-      "Bash(ruff check:*)"
+      "Bash(ruff check:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }
