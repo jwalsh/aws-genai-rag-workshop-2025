@@ -75,3 +75,7 @@ presentation.tex
 presentation.html
 timeline.png
 architecture.png
+
+# Downloaded philosophy texts
+data/*.pdf
+data/*.txt

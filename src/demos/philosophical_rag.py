@@ -38,7 +38,7 @@ class PhilosophicalRAG:
         boethius_path = data_dir / "consolation_of_philosophy.txt"
         if boethius_path.exists():
             print("📜 Loading Boethius - Consolation of Philosophy...")
-            with open(boethius_path, 'r', encoding='utf-8') as f:
+            with open(boethius_path, 'r', encoding='iso-8859-1') as f:
                 text = f.read()
                 # Skip Project Gutenberg header
                 start = text.find("BOOK I.")
