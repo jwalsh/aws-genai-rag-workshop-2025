@@ -18,6 +18,7 @@ dependencies = [
     "plotly>=5.22.0",
     "pydantic>=2.7.0",
     "python-dotenv>=1.0.0",
+    "awscli>=1.32.0",
     "awscli-local>=0.22.0",
     "localstack>=3.5.0",
     "psycopg2-binary>=2.9.0",
@@ -75,3 +76,17 @@ disallow_untyped_defs = true
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-v --tb=short"
+
+[tool.files-to-prompt]
+include = [
+    "src/**/*.py",
+    "notebooks/*.org",
+    "Makefile",
+    "pyproject.toml",
+    "README.org"
+]
+exclude = [
+    "**/__pycache__/**",
+    "**/node_modules/**",
+    "data/**"
+]

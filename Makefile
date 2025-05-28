@@ -2,9 +2,7 @@
 
 .PHONY: help install dev-install test lint format localstack-up localstack-down clean
 
-PYTHON := python3
 UV := uv
-PANDOC := pandoc
 
 # File dependencies
 README.md: README.org
@@ -42,7 +40,6 @@ localstack-up: ## Start LocalStack and initialize AWS services
 	docker-compose up -d localstack
 	@echo "Waiting for LocalStack to be ready..."
 	@sleep 10
-	chmod +x localstack/init-aws.sh
 	./localstack/init-aws.sh
 
 localstack-down: ## Stop LocalStack
@@ -106,7 +103,7 @@ test-level3: ## Run Level 3 tests (with LocalStack)
 test-level4: ## Run Level 4 tests (with real AWS)
 	@echo "Testing Level 4 (with real AWS)..."
 	@echo "Using AWS_PROFILE=dev and unsetting LocalStack endpoint"
-	@AWS_PROFILE=dev AWS_ENDPOINT_URL= aws s3 ls
+	@AWS_PROFILE=dev AWS_ENDPOINT_URL= $(UV) run aws s3 ls
 	@AWS_PROFILE=dev AWS_ENDPOINT_URL= $(UV) run pytest tests/ -v -k "aws" --aws-integration
 
 lint: py-lint org-lint ## Run all linting (Python and Org-mode)
