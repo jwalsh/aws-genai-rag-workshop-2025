@@ -20,7 +20,7 @@ class RAGConfig:
 
     chunk_size: int = 512
     chunk_overlap: int = 50
-    embedding_model: str = "amazon.titan-embed-text-v1"
+    embedding_model: str = "all-MiniLM-L6-v2"  # Use local model by default
     retrieval_k: int = 5
     rerank: bool = True
 
@@ -146,9 +146,16 @@ def process(source: str, chunks: int):
     config = RAGConfig()
     pipeline = RAGPipeline(config)
     
-    # Load document (simplified)
-    with open(source, 'r') as f:
-        text = f.read()
+    # Load document
+    if source.endswith('.pdf'):
+        from ..utils.pdf_extractor import PDFExtractor
+        extractor = PDFExtractor()
+        # Extract limited pages to avoid processing whole PDF
+        max_pages = chunks // 10  # Roughly 10 chunks per page
+        text = extractor.extract_text(source, max_pages=max_pages)
+    else:
+        with open(source, 'r') as f:
+            text = f.read()
     
     pipeline.process_documents([text])
     pipeline.vector_store.save("data/vector_store")

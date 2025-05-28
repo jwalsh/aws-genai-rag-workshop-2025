@@ -59,6 +59,35 @@ test: ## Run tests with pytest
 test-cov: ## Run tests with coverage
 	$(UV) run pytest tests/ --cov=src --cov-report=html --cov-report=term
 
+##@ OS Compatibility Testing
+
+test-compatibility: ## Test Python-only compatibility (Level 1)
+	@echo "Testing Python-only compatibility..."
+	$(UV) run python test_compatibility.py
+
+test-level1: test-compatibility ## Run Level 1 tests (Python-only, all OSes)
+	@echo "Running Level 1 (Python-only) tests..."
+	$(UV) run pytest tests/test_rag.py -v -k "not aws and not docker"
+
+test-level2: ## Run Level 2 tests (with PostgreSQL)
+	@echo "Testing Level 2 (with PostgreSQL)..."
+	docker compose up -d postgres
+	@sleep 5
+	$(UV) run pytest tests/test_text_to_sql.py -v
+
+test-level3: ## Run Level 3 tests (with LocalStack)
+	@echo "Testing Level 3 (with LocalStack)..."
+	docker compose up -d
+	@sleep 10
+	awslocal s3 ls
+	$(UV) run pytest tests/ -v -k "localstack"
+
+test-level4: ## Run Level 4 tests (with real AWS)
+	@echo "Testing Level 4 (with real AWS)..."
+	@echo "Ensure AWS_PROFILE=dev is set"
+	aws s3 ls
+	$(UV) run pytest tests/ -v -k "aws" --aws-integration
+
 lint: py-lint org-lint ## Run all linting (Python and Org-mode)
 
 py-lint: ## Run Python linting with ruff

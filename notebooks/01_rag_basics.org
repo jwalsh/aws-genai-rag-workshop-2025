@@ -77,91 +77,31 @@ else
 fi
 #+END_SRC
 
-For processing PDFs in our RAG pipeline, we'll also create a simple PDF text extractor:
+For processing PDFs in our RAG pipeline, we'll use the PDF extractor from the project:
 
-#+BEGIN_SRC python :tangle 01_rag_basics/pdf_extractor.py
+#+BEGIN_SRC python
+import sys
+sys.path.append('..')  # Add parent directory to path
+
+from src.utils.pdf_extractor import PDFExtractor
 import os
-from typing import List, Optional
-try:
-    import PyPDF2
-except ImportError:
-    print("PyPDF2 not installed. Run: pip install PyPDF2")
-    PyPDF2 = None
 
-class PDFExtractor:
-    """Extract text from PDF files for RAG processing."""
-    
-    def __init__(self):
-        if PyPDF2 is None:
-            raise ImportError("PyPDF2 is required for PDF extraction")
-    
-    def extract_text(self, pdf_path: str, max_pages: Optional[int] = None) -> str:
-        """Extract text from PDF file."""
-        if not os.path.exists(pdf_path):
-            raise FileNotFoundError(f"PDF file not found: {pdf_path}")
-        
-        text_content = []
-        
-        with open(pdf_path, 'rb') as file:
-            pdf_reader = PyPDF2.PdfReader(file)
-            num_pages = len(pdf_reader.pages)
-            
-            if max_pages:
-                num_pages = min(num_pages, max_pages)
-            
-            for page_num in range(num_pages):
-                page = pdf_reader.pages[page_num]
-                text = page.extract_text()
-                if text.strip():
-                    text_content.append(f"--- Page {page_num + 1} ---\n{text}")
-        
-        return "\n\n".join(text_content)
-    
-    def extract_pages(self, pdf_path: str, start_page: int = 0, 
-                      end_page: Optional[int] = None) -> List[str]:
-        """Extract specific pages from PDF."""
-        if not os.path.exists(pdf_path):
-            raise FileNotFoundError(f"PDF file not found: {pdf_path}")
-        
-        pages = []
-        
-        with open(pdf_path, 'rb') as file:
-            pdf_reader = PyPDF2.PdfReader(file)
-            total_pages = len(pdf_reader.pages)
-            
-            if end_page is None:
-                end_page = total_pages
-            else:
-                end_page = min(end_page, total_pages)
-            
-            for page_num in range(start_page, end_page):
-                page = pdf_reader.pages[page_num]
-                text = page.extract_text()
-                pages.append(text)
-        
-        return pages
+# Check if our sample PDF exists
+pdf_path = "../data/rogets_thesaurus.pdf"
 
-# Example usage
-if __name__ == "__main__":
-    # Check if our sample PDF exists
-    # First check local notebook data, then project data directory
-    pdf_path = "data/rogets_thesaurus.pdf"
-    if not os.path.exists(pdf_path):
-        pdf_path = "../../data/rogets_thesaurus.pdf"
-    
-    if os.path.exists(pdf_path):
-        try:
-            extractor = PDFExtractor()
-            # Extract first 5 pages as a sample
-            text = extractor.extract_text(pdf_path, max_pages=5)
-            print(f"Extracted {len(text)} characters from first 5 pages")
-            print("\nFirst 500 characters:")
-            print(text[:500])
-        except Exception as e:
-            print(f"Error extracting PDF: {e}")
-    else:
-        print(f"Sample PDF not found at {pdf_path}")
-        print("Run the shell block above to download it.")
+if os.path.exists(pdf_path):
+    try:
+        extractor = PDFExtractor()
+        # Extract first 5 pages as a sample
+        text = extractor.extract_text(pdf_path, max_pages=5)
+        print(f"Extracted {len(text)} characters from first 5 pages")
+        print("\nFirst 500 characters:")
+        print(text[:500])
+    except Exception as e:
+        print(f"Error extracting PDF: {e}")
+else:
+    print(f"Sample PDF not found at {pdf_path}")
+    print("Run the shell block above to download it.")
 #+END_SRC
 
 * Understanding RAG Components
@@ -211,271 +151,142 @@ jq '.embedding[:5]' /tmp/embedding_response.json
 ** Compare with Local Embeddings
 
 #+BEGIN_SRC python
-from sentence_transformers import SentenceTransformer
+from src.rag.embeddings import EmbeddingGenerator
 import numpy as np
-from typing import List, Union
 
-class EmbeddingGenerator:
-    """Generate embeddings using sentence transformers."""
-    
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
-        self.model = SentenceTransformer(model_name)
-        self.dimension = self.model.get_sentence_embedding_dimension()
-    
-    def generate(self, texts: Union[str, List[str]]) -> np.ndarray:
-        """Generate embeddings for text or list of texts."""
-        if isinstance(texts, str):
-            texts = [texts]
+# Create embedding generator
+generator = EmbeddingGenerator()
+
+# Generate embeddings for sample texts
+texts = [
+    "What is machine learning?",
+    "Machine learning is a subset of artificial intelligence.",
+    "The weather is nice today."
+]
+
+embeddings = generator.generate(texts)
+print(f"Embedding dimension: {generator.dimension}")
+print(f"Generated {len(embeddings)} embeddings")
+
+# Calculate similarities
+for i in range(len(texts)):
+    for j in range(i+1, len(texts)):
+        # Calculate cosine similarity
+        dot_product = np.dot(embeddings[i], embeddings[j])
+        norm1 = np.linalg.norm(embeddings[i])
+        norm2 = np.linalg.norm(embeddings[j])
+        sim = dot_product / (norm1 * norm2)
         
-        embeddings = self.model.encode(texts, convert_to_numpy=True)
-        return embeddings
-    
-    def similarity(self, embedding1: np.ndarray, embedding2: np.ndarray) -> float:
-        """Calculate cosine similarity between two embeddings."""
-        dot_product = np.dot(embedding1, embedding2)
-        norm1 = np.linalg.norm(embedding1)
-        norm2 = np.linalg.norm(embedding2)
-        return dot_product / (norm1 * norm2)
-
-# Example usage
-if __name__ == "__main__":
-    generator = EmbeddingGenerator()
-    
-    # Generate embeddings for sample texts
-    texts = [
-        "What is machine learning?",
-        "Machine learning is a subset of artificial intelligence.",
-        "The weather is nice today."
-    ]
-    
-    embeddings = generator.generate(texts)
-    print(f"Embedding dimension: {generator.dimension}")
-    print(f"Generated {len(embeddings)} embeddings")
-    
-    # Calculate similarities
-    for i in range(len(texts)):
-        for j in range(i+1, len(texts)):
-            sim = generator.similarity(embeddings[i], embeddings[j])
-            print(f"\nSimilarity between:")
-            print(f"  '{texts[i]}'")
-            print(f"  '{texts[j]}'")
-            print(f"  Score: {sim:.4f}")
+        print(f"\nSimilarity between:")
+        print(f"  '{texts[i]}'")
+        print(f"  '{texts[j]}'")
+        print(f"  Score: {sim:.4f}")
 #+END_SRC
 
 * Vector Storage with FAISS
 
-Let's implement a simple vector store using FAISS for efficient similarity search.
+Let's use the project's vector store implementation:
 
-#+BEGIN_SRC python :tangle 01_rag_basics/vector_store.py
-import faiss
-import numpy as np
-import pickle
-from typing import List, Tuple, Dict, Optional
+#+BEGIN_SRC python
+from src.rag.vector_store import FAISSVectorStore
+from src.rag.embeddings import EmbeddingGenerator
 
-class FAISSVectorStore:
-    """Simple FAISS-based vector store for similarity search."""
-    
-    def __init__(self, dimension: int):
-        self.dimension = dimension
-        self.index = faiss.IndexFlatL2(dimension)
-        self.documents = []
-        self.metadata = []
-    
-    def add(self, embeddings: np.ndarray, documents: List[str], 
-            metadata: Optional[List[Dict]] = None):
-        """Add embeddings and associated documents to the store."""
-        if embeddings.shape[1] != self.dimension:
-            raise ValueError(f"Embedding dimension {embeddings.shape[1]} != {self.dimension}")
-        
-        # Add to FAISS index
-        self.index.add(embeddings.astype('float32'))
-        
-        # Store documents and metadata
-        self.documents.extend(documents)
-        if metadata:
-            self.metadata.extend(metadata)
-        else:
-            self.metadata.extend([{}] * len(documents))
-    
-    def search(self, query_embedding: np.ndarray, k: int = 5) -> List[Tuple[int, float, str]]:
-        """Search for k most similar documents."""
-        query_embedding = query_embedding.reshape(1, -1).astype('float32')
-        distances, indices = self.index.search(query_embedding, k)
-        
-        results = []
-        for i, (idx, dist) in enumerate(zip(indices[0], distances[0])):
-            if idx < len(self.documents):
-                results.append({
-                    'index': int(idx),
-                    'distance': float(dist),
-                    'document': self.documents[idx],
-                    'metadata': self.metadata[idx]
-                })
-        
-        return results
-    
-    def save(self, path: str):
-        """Save the vector store to disk."""
-        with open(f"{path}_data.pkl", 'wb') as f:
-            pickle.dump({
-                'documents': self.documents,
-                'metadata': self.metadata,
-                'dimension': self.dimension
-            }, f)
-        faiss.write_index(self.index, f"{path}_index.faiss")
-    
-    def load(self, path: str):
-        """Load the vector store from disk."""
-        with open(f"{path}_data.pkl", 'rb') as f:
-            data = pickle.load(f)
-            self.documents = data['documents']
-            self.metadata = data['metadata']
-            self.dimension = data['dimension']
-        self.index = faiss.read_index(f"{path}_index.faiss")
+# Create vector store
+generator = EmbeddingGenerator()
+vector_store = FAISSVectorStore(dimension=generator.dimension)
 
-# Example usage
-if __name__ == "__main__":
-    from embeddings import EmbeddingGenerator
-    
-    # Create vector store
-    generator = EmbeddingGenerator()
-    vector_store = FAISSVectorStore(dimension=generator.dimension)
-    
-    # Add some documents
-    documents = [
-        "Python is a high-level programming language.",
-        "Machine learning enables computers to learn from data.",
-        "Natural language processing deals with text analysis.",
-        "Deep learning uses neural networks with multiple layers.",
-        "AWS provides cloud computing services."
-    ]
-    
-    embeddings = generator.generate(documents)
-    vector_store.add(embeddings, documents)
-    
-    # Search for similar documents
-    query = "What is artificial intelligence?"
-    query_embedding = generator.generate(query)
-    
-    results = vector_store.search(query_embedding[0], k=3)
-    
-    print(f"Query: {query}\n")
-    print("Top 3 similar documents:")
-    for result in results:
-        print(f"\n- Document: {result['document']}")
-        print(f"  Distance: {result['distance']:.4f}")
+# Add some documents
+documents = [
+    "Python is a high-level programming language.",
+    "Machine learning enables computers to learn from data.",
+    "Natural language processing deals with text analysis.",
+    "Deep learning uses neural networks with multiple layers.",
+    "AWS provides cloud computing services."
+]
+
+embeddings = generator.generate(documents)
+vector_store.add(embeddings, documents)
+
+# Search for similar documents
+query = "What is artificial intelligence?"
+query_embedding = generator.generate(query)
+
+results = vector_store.search(query_embedding[0], k=3)
+
+print(f"Query: {query}\n")
+print("Top 3 similar documents:")
+for result in results:
+    print(f"\n- Document: {result['document']}")
+    print(f"  Distance: {result['distance']:.4f}")
 #+END_SRC
 
 * Building a Simple RAG Pipeline
 
-Now let's combine all components into a simple RAG pipeline.
+Now let's use the project's RAG pipeline:
 
-#+BEGIN_SRC python :tangle 01_rag_basics/rag_pipeline.py
-import os
-from typing import List, Dict, Optional
-from chunking import SimpleChunker
-from embeddings import EmbeddingGenerator
-from vector_store import FAISSVectorStore
+#+BEGIN_SRC python
+from src.rag.pipeline import RAGPipeline, RAGConfig
+from src.rag.chunking import SimpleChunker
+from src.rag.embeddings import EmbeddingGenerator
+from src.rag.vector_store import FAISSVectorStore
 
-class SimpleRAGPipeline:
-    """A simple RAG pipeline for demonstration."""
-    
-    def __init__(self, 
-                 chunk_size: int = 512,
-                 chunk_overlap: int = 50,
-                 embedding_model: str = "all-MiniLM-L6-v2"):
-        self.chunker = SimpleChunker(chunk_size, chunk_overlap)
-        self.embedder = EmbeddingGenerator(embedding_model)
-        self.vector_store = FAISSVectorStore(self.embedder.dimension)
-        self.documents_processed = 0
-    
-    def add_document(self, text: str, metadata: Optional[Dict] = None):
-        """Process and add a document to the pipeline."""
-        # Chunk the document
-        chunks = self.chunker.chunk_text(text)
-        
-        # Extract text from chunks
-        chunk_texts = [chunk['text'] for chunk in chunks]
-        
-        # Generate embeddings
-        embeddings = self.embedder.generate(chunk_texts)
-        
-        # Add to vector store
-        chunk_metadata = []
-        for chunk in chunks:
-            meta = metadata.copy() if metadata else {}
-            meta.update({
-                'chunk_index': chunk['index'],
-                'start': chunk['start'],
-                'end': chunk['end'],
-                'doc_id': self.documents_processed
-            })
-            chunk_metadata.append(meta)
-        
-        self.vector_store.add(embeddings, chunk_texts, chunk_metadata)
-        self.documents_processed += 1
-    
-    def retrieve(self, query: str, k: int = 5) -> List[Dict]:
-        """Retrieve relevant context for a query."""
-        # Generate query embedding
-        query_embedding = self.embedder.generate(query)[0]
-        
-        # Search vector store
-        results = self.vector_store.search(query_embedding, k)
-        
-        return results
-    
-    def generate_response(self, query: str, k: int = 5) -> str:
-        """Generate a response using retrieved context."""
-        # Retrieve relevant context
-        contexts = self.retrieve(query, k)
-        
-        # In a real implementation, this would use an LLM
-        # For now, we'll just return the retrieved contexts
-        response = f"Query: {query}\n\n"
-        response += "Retrieved contexts:\n"
-        for i, ctx in enumerate(contexts):
-            response += f"\n{i+1}. {ctx['document'][:100]}...\n"
-            response += f"   (Distance: {ctx['distance']:.4f})\n"
-        
-        return response
+# Create a simple RAG demonstration
+# First, let's use the individual components
+chunker = SimpleChunker(chunk_size=512, overlap=50)
+embedder = EmbeddingGenerator()
+vector_store = FAISSVectorStore(dimension=embedder.dimension)
 
-# Example usage
-if __name__ == "__main__":
-    # Create RAG pipeline
-    rag = SimpleRAGPipeline()
+# Add some documents
+documents = [
+    """Amazon Web Services (AWS) is a subsidiary of Amazon that provides 
+    on-demand cloud computing platforms and APIs to individuals, companies, 
+    and governments, on a metered pay-as-you-go basis.""",
     
-    # Add some documents
-    documents = [
-        """Amazon Web Services (AWS) is a subsidiary of Amazon that provides 
-        on-demand cloud computing platforms and APIs to individuals, companies, 
-        and governments, on a metered pay-as-you-go basis.""",
-        
-        """Machine learning is a subset of artificial intelligence that enables 
-        systems to learn and improve from experience without being explicitly 
-        programmed. It focuses on developing algorithms that can access data 
-        and use it to learn for themselves.""",
-        
-        """Retrieval Augmented Generation (RAG) is a technique that combines 
-        large language models with information retrieval systems. It allows 
-        models to access external knowledge bases to provide more accurate 
-        and up-to-date responses."""
-    ]
+    """Machine learning is a subset of artificial intelligence that enables 
+    systems to learn and improve from experience without being explicitly 
+    programmed. It focuses on developing algorithms that can access data 
+    and use it to learn for themselves.""",
     
-    for doc in documents:
-        rag.add_document(doc)
+    """Retrieval Augmented Generation (RAG) is a technique that combines 
+    large language models with information retrieval systems. It allows 
+    models to access external knowledge bases to provide more accurate 
+    and up-to-date responses."""
+]
+
+# Process each document
+for doc_id, doc in enumerate(documents):
+    # Chunk the document
+    chunks = chunker.chunk_text(doc)
+    chunk_texts = [chunk['text'] for chunk in chunks]
     
-    # Test queries
-    queries = [
-        "What is AWS?",
-        "Explain machine learning",
-        "How does RAG work?"
-    ]
+    # Generate embeddings
+    embeddings = embedder.generate(chunk_texts)
     
-    for query in queries:
-        print("="*50)
-        response = rag.generate_response(query, k=2)
-        print(response)
+    # Add to vector store with metadata
+    metadata = [{'doc_id': doc_id, 'chunk_index': i} for i in range(len(chunks))]
+    vector_store.add(embeddings, chunk_texts, metadata)
+
+# Test queries
+queries = [
+    "What is AWS?",
+    "Explain machine learning",
+    "How does RAG work?"
+]
+
+for query in queries:
+    print("="*50)
+    print(f"Query: {query}\n")
+    
+    # Generate query embedding
+    query_embedding = embedder.generate(query)[0]
+    
+    # Search for similar documents
+    results = vector_store.search(query_embedding, k=2)
+    
+    print("Retrieved contexts:")
+    for i, result in enumerate(results):
+        print(f"\n{i+1}. {result['document'][:100]}...")
+        print(f"   (Distance: {result['distance']:.4f})")
 #+END_SRC
 
 * Exercises
@@ -491,314 +302,172 @@ Replace the local embedding model with Amazon Bedrock's Titan Embeddings.
 
 * AWS Integration with LocalStack and Bedrock
 
-Let's enhance our RAG pipeline to work with AWS services, both locally via LocalStack and with real AWS.
+Let's demonstrate AWS integration using the project's utilities:
 
-#+BEGIN_SRC python :tangle 01_rag_basics/aws_rag_integration.py
-import os
+#+BEGIN_SRC python
+from src.utils.aws_client import get_bedrock_runtime_client, get_s3_client
+from src.rag.embeddings import EmbeddingGenerator
+from src.rag.chunking import SimpleChunker
+from src.rag.vector_store import FAISSVectorStore
 import json
-import boto3
-from typing import List, Dict, Any, Optional
-from chunking import SimpleChunker
-from embeddings import EmbeddingGenerator
-from vector_store import FAISSVectorStore
+import os
 
-class AWSRAGPipeline:
-    """RAG pipeline with AWS integration."""
+# Set up for LocalStack
+os.environ['LOCALSTACK_ENDPOINT'] = 'http://localhost:4566'
+
+# Get AWS clients
+bedrock = get_bedrock_runtime_client()
+s3 = get_s3_client()
+
+# Initialize components
+chunker = SimpleChunker(chunk_size=512, overlap=50)
+embedder = EmbeddingGenerator()
+vector_store = FAISSVectorStore(dimension=embedder.dimension)
+
+# Cost tracking
+costs = {
+    'embedding_requests': 0,
+    'llm_requests': 0,
+    'storage_operations': 0
+}
+
+def generate_bedrock_embeddings(texts):
+    """Generate embeddings using Amazon Bedrock Titan."""
+    embeddings = []
     
-    def __init__(self, 
-                 use_localstack: bool = True,
-                 chunk_size: int = 512,
-                 chunk_overlap: int = 50):
-        # AWS Configuration
-        self.use_localstack = use_localstack
-        if use_localstack:
-            self.endpoint_url = "http://localhost:4566"
-        else:
-            self.endpoint_url = None
-            
-        # Initialize AWS clients
-        self.bedrock = boto3.client(
-            'bedrock-runtime',
-            endpoint_url=self.endpoint_url,
-            region_name='us-east-1'
-        )
-        
-        self.s3 = boto3.client(
-            's3',
-            endpoint_url=self.endpoint_url,
-            region_name='us-east-1'
-        )
-        
-        # Initialize components
-        self.chunker = SimpleChunker(chunk_size, chunk_overlap)
-        self.embedder = EmbeddingGenerator()
-        self.vector_store = FAISSVectorStore(self.embedder.dimension)
-        
-        # Cost tracking
-        self.costs = {
-            'embedding_requests': 0,
-            'llm_requests': 0,
-            'storage_operations': 0
-        }
-    
-    def generate_bedrock_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings using Amazon Bedrock Titan."""
-        embeddings = []
-        
-        for text in texts:
-            try:
-                response = self.bedrock.invoke_model(
-                    modelId="amazon.titan-embed-text-v1",
-                    body=json.dumps({"inputText": text})
-                )
-                
-                result = json.loads(response['body'].read())
-                embeddings.append(result['embedding'])
-                
-                # Track costs (Titan Embeddings: $0.0001 per 1K tokens)
-                estimated_tokens = len(text.split()) * 1.3  # Rough estimation
-                self.costs['embedding_requests'] += (estimated_tokens / 1000) * 0.0001
-                
-            except Exception as e:
-                print(f"Bedrock embedding failed, falling back to local: {e}")
-                # Fallback to local embeddings
-                local_emb = self.embedder.generate([text])[0]
-                embeddings.append(local_emb.tolist())
-        
-        return embeddings
-    
-    def store_in_s3(self, key: str, data: bytes) -> str:
-        """Store data in S3 (or LocalStack)."""
-        bucket = "workshop-rag-documents"
-        
+    for text in texts:
         try:
-            self.s3.put_object(
-                Bucket=bucket,
-                Key=key,
-                Body=data
+            response = bedrock.invoke_model(
+                modelId="amazon.titan-embed-text-v1",
+                body=json.dumps({"inputText": text})
             )
-            self.costs['storage_operations'] += 1
-            return f"s3://{bucket}/{key}"
+            
+            result = json.loads(response['body'].read())
+            embeddings.append(result['embedding'])
+            
+            # Track costs (Titan Embeddings: $0.0001 per 1K tokens)
+            estimated_tokens = len(text.split()) * 1.3  # Rough estimation
+            costs['embedding_requests'] += (estimated_tokens / 1000) * 0.0001
+            
         except Exception as e:
-            print(f"S3 storage failed: {e}")
-            return None
+            print(f"Bedrock embedding failed, falling back to local: {e}")
+            # Fallback to local embeddings
+            local_emb = embedder.generate([text])[0]
+            embeddings.append(local_emb.tolist())
     
-    def calculate_costs(self) -> Dict[str, float]:
-        """Calculate estimated AWS costs."""
-        total_cost = (
-            self.costs['embedding_requests'] +  # Titan Embeddings
-            self.costs['llm_requests'] * 0.003 +  # Claude 3 Haiku estimate
-            self.costs['storage_operations'] * 0.0004  # S3 PUT requests
-        )
-        
-        return {
-            'embedding_costs': self.costs['embedding_requests'],
-            'llm_costs': self.costs['llm_requests'] * 0.003,
-            'storage_costs': self.costs['storage_operations'] * 0.0004,
-            'total_estimated_cost': total_cost
-        }
+    return embeddings
 
-# Expected Output Example:
-if __name__ == "__main__":
-    # Initialize with LocalStack
-    aws_rag = AWSRAGPipeline(use_localstack=True)
-    
-    sample_text = "Amazon Web Services provides cloud computing services."
-    
-    # Test embedding generation
-    embeddings = aws_rag.generate_bedrock_embeddings([sample_text])
-    print(f"Generated {len(embeddings)} embeddings")
+# Test with sample text
+sample_text = "Amazon Web Services provides cloud computing services."
+
+# Test embedding generation
+embeddings = generate_bedrock_embeddings([sample_text])
+print(f"Generated {len(embeddings)} embeddings")
+if embeddings:
     print(f"Embedding dimension: {len(embeddings[0])}")
-    
-    # Test S3 storage
-    s3_url = aws_rag.store_in_s3("test-doc.txt", sample_text.encode())
-    print(f"Stored in: {s3_url}")
-    
-    # Check costs
-    costs = aws_rag.calculate_costs()
-    print(f"Estimated costs: ${costs['total_estimated_cost']:.6f}")
-    
-    # Expected output:
-    # Generated 1 embeddings
-    # Embedding dimension: 1536
-    # Stored in: s3://workshop-rag-documents/test-doc.txt
-    # Estimated costs: $0.000013
+
+# Test S3 storage
+bucket = "workshop-rag-documents"
+try:
+    s3.put_object(
+        Bucket=bucket,
+        Key="test-doc.txt",
+        Body=sample_text.encode()
+    )
+    costs['storage_operations'] += 1
+    print(f"Stored in: s3://{bucket}/test-doc.txt")
+except Exception as e:
+    print(f"S3 storage failed: {e}")
+
+# Calculate costs
+total_cost = (
+    costs['embedding_requests'] +  # Titan Embeddings
+    costs['llm_requests'] * 0.003 +  # Claude 3 Haiku estimate
+    costs['storage_operations'] * 0.0004  # S3 PUT requests
+)
+
+print(f"Estimated costs: ${total_cost:.6f}")
 #+END_SRC
 
 * Cost Analysis
 
 Understanding AWS costs is crucial for production RAG systems.
 
-#+BEGIN_SRC python :tangle 01_rag_basics/cost_analysis.py
-from typing import Dict, List
+#+BEGIN_SRC python
+from src.utils.cost_calculator import RAGCostEstimator
 
-class RAGCostEstimator:
-    """Estimate costs for RAG operations on AWS."""
-    
-    # AWS Bedrock pricing (as of 2024)
-    PRICING = {
-        'titan_embeddings': 0.0001,  # per 1K tokens
-        'claude_3_haiku': {
-            'input': 0.00025,   # per 1K tokens
-            'output': 0.00125   # per 1K tokens
-        },
-        'claude_3_sonnet': {
-            'input': 0.003,     # per 1K tokens  
-            'output': 0.015     # per 1K tokens
-        },
-        's3_put': 0.0005,       # per 1K requests
-        's3_get': 0.0004,       # per 1K requests
-        's3_storage': 0.023,    # per GB-month
-        'dynamodb_write': 1.25, # per million writes
-        'dynamodb_read': 0.25   # per million reads
-    }
-    
-    def estimate_embedding_cost(self, num_documents: int, avg_doc_length: int) -> Dict:
-        """Estimate embedding generation costs."""
-        # Estimate tokens (roughly 1.3 tokens per word)
-        words_per_doc = avg_doc_length // 5  # Rough estimate
-        total_tokens = num_documents * words_per_doc * 1.3
-        
-        cost = (total_tokens / 1000) * self.PRICING['titan_embeddings']
-        
-        return {
-            'documents': num_documents,
-            'estimated_tokens': int(total_tokens),
-            'cost_usd': round(cost, 6)
-        }
-    
-    def estimate_query_cost(self, num_queries: int, model: str = 'claude_3_haiku') -> Dict:
-        """Estimate query processing costs."""
-        # Typical query: 100 input tokens, 200 output tokens
-        input_cost = (num_queries * 100 / 1000) * self.PRICING[model]['input']
-        output_cost = (num_queries * 200 / 1000) * self.PRICING[model]['output']
-        
-        return {
-            'queries': num_queries,
-            'input_cost_usd': round(input_cost, 6),
-            'output_cost_usd': round(output_cost, 6),
-            'total_cost_usd': round(input_cost + output_cost, 6)
-        }
-    
-    def estimate_monthly_cost(self, 
-                            documents_per_month: int,
-                            queries_per_month: int,
-                            storage_gb: float = 1.0) -> Dict:
-        """Estimate total monthly costs."""
-        
-        embedding_cost = self.estimate_embedding_cost(documents_per_month, 1000)
-        query_cost = self.estimate_query_cost(queries_per_month)
-        storage_cost = storage_gb * self.PRICING['s3_storage']
-        
-        total = (embedding_cost['cost_usd'] + 
-                query_cost['total_cost_usd'] + 
-                storage_cost)
-        
-        return {
-            'embedding_cost': embedding_cost['cost_usd'],
-            'query_cost': query_cost['total_cost_usd'],
-            'storage_cost': round(storage_cost, 6),
-            'total_monthly_cost': round(total, 2)
-        }
+# Create cost estimator
+estimator = RAGCostEstimator()
 
-# Example cost calculations
-if __name__ == "__main__":
-    estimator = RAGCostEstimator()
-    
-    # Example: Small business use case
-    monthly_costs = estimator.estimate_monthly_cost(
-        documents_per_month=1000,    # 1K new documents
-        queries_per_month=10000,     # 10K queries
-        storage_gb=5.0               # 5GB storage
-    )
-    
-    print("Monthly Cost Estimate:")
-    print(f"  Embeddings: ${monthly_costs['embedding_cost']}")
-    print(f"  Queries: ${monthly_costs['query_cost']}")
-    print(f"  Storage: ${monthly_costs['storage_cost']}")
-    print(f"  Total: ${monthly_costs['total_monthly_cost']}")
-    
-    # Expected output:
-    # Monthly Cost Estimate:
-    #   Embeddings: $0.065
-    #   Queries: $3.5
-    #   Storage: $0.115
-    #   Total: $3.68
+# Example: Small business use case
+monthly_costs = estimator.estimate_monthly_cost(
+    documents_per_month=1000,    # 1K new documents
+    queries_per_month=10000,     # 10K queries
+    storage_gb=5.0               # 5GB storage
+)
+
+print("Monthly Cost Estimate:")
+print(f"  Embeddings: ${monthly_costs['embedding_cost']}")
+print(f"  Queries: ${monthly_costs['query_cost']}")
+print(f"  Storage: ${monthly_costs['storage_cost']}")
+print(f"  Total: ${monthly_costs['total_monthly_cost']}")
+
+# Medium enterprise example
+enterprise_costs = estimator.estimate_monthly_cost(
+    documents_per_month=10000,
+    queries_per_month=100000,
+    storage_gb=50.0
+)
+
+print("\nEnterprise Cost Estimate:")
+print(f"  Total: ${enterprise_costs['total_monthly_cost']}")
 #+END_SRC
 
 * Integration with Project Modules
 
-Let's demonstrate integration with the existing project structure.
+Let's demonstrate using the full project pipeline:
 
-#+BEGIN_SRC python :tangle 01_rag_basics/project_integration.py
-import sys
-import os
-
-# Add project root to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
+#+BEGIN_SRC python
 from src.rag.pipeline import RAGPipeline, RAGConfig
 from src.utils.aws_client import get_bedrock_runtime_client
-from chunking import SimpleChunker
-from embeddings import EmbeddingGenerator
+import os
 
-def integrate_with_project():
-    """Demonstrate integration with existing project modules."""
-    
-    # Use project's RAG configuration
-    config = RAGConfig(
-        chunk_size=512,
-        chunk_overlap=50,
-        embedding_model="amazon.titan-embed-text-v1",
-        retrieval_k=5
-    )
-    
-    # Create production pipeline
+# Use project's RAG configuration
+config = RAGConfig(
+    chunk_size=512,
+    chunk_overlap=50,
+    embedding_model="amazon.titan-embed-text-v1",
+    retrieval_k=5
+)
+
+# Create production pipeline
+try:
     production_pipeline = RAGPipeline(config)
-    
-    # Compare with our simple implementation
-    simple_chunker = SimpleChunker(512, 50)
-    simple_embedder = EmbeddingGenerator()
-    
-    # Test document
-    test_doc = """
-    Retrieval Augmented Generation (RAG) combines large language models 
-    with external knowledge bases. This approach enables more accurate, 
-    up-to-date, and verifiable responses by retrieving relevant information 
-    before generating answers.
-    """
-    
-    # Process with both approaches
-    simple_chunks = simple_chunker.chunk_text(test_doc)
-    print(f"Simple chunker created {len(simple_chunks)} chunks")
-    
-    # Show integration capabilities
-    print("\nProject Integration Features:")
-    print("- Production RAG pipeline available")
-    print("- AWS client utilities configured")
-    print("- Cost calculation utilities")
-    print("- Modular component architecture")
-    
-    return {
-        'simple_chunks': len(simple_chunks),
-        'production_config': config,
-        'integration_successful': True
-    }
+    print("Production RAG pipeline created successfully")
+except Exception as e:
+    print(f"Pipeline creation error (expected with LocalStack): {e}")
 
-if __name__ == "__main__":
-    result = integrate_with_project()
-    print(f"\nIntegration result: {result}")
-    
-    # Expected output:
-    # Simple chunker created 3 chunks
-    # 
-    # Project Integration Features:
-    # - Production RAG pipeline available
-    # - AWS client utilities configured
-    # - Cost calculation utilities
-    # - Modular component architecture
-    # 
-    # Integration result: {'simple_chunks': 3, 'production_config': RAGConfig(...), 'integration_successful': True}
+# Test document
+test_doc = """
+Retrieval Augmented Generation (RAG) combines large language models 
+with external knowledge bases. This approach enables more accurate, 
+up-to-date, and verifiable responses by retrieving relevant information 
+before generating answers.
+"""
+
+# Show integration capabilities
+print("\nProject Integration Features:")
+print("- Production RAG pipeline available")
+print("- AWS client utilities configured")
+print("- Cost calculation utilities")
+print("- Modular component architecture")
+print("- Guardrails and safety checks")
+print("- SQL agent capabilities")
+
+# List available modules
+print("\nAvailable src modules:")
+for module in ['rag', 'agents', 'guardrails', 'utils']:
+    print(f"- src.{module}")
 #+END_SRC
 
 * Summary

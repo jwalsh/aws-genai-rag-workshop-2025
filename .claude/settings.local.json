@@ -8,7 +8,8 @@
       "Bash(.venv/bin/python:*)",
       "Bash(ruff check:*)",
       "Bash(find:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(sed:*)"
     ],
     "deny": []
   }

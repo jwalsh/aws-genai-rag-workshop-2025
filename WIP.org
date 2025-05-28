@@ -1,0 +1,185 @@
+#+TITLE: Work In Progress - Multi-OS Testing Plan
+#+AUTHOR: aygp-dr
+#+DATE: 2025-05-28
+
+* Testing Matrix
+
+** Operating Systems
+1. FreeBSD 14.2 (limited Docker support)
+2. Linux pi 6.12.20+rpt-rpi-v8 (Debian, aarch64) - via Tailscale
+3. Darwin 24.1.0 (macOS on M1 MacBook Pro)
+
+** Progressive Capability Levels
+
+*** Level 1: Python Only (All OSes)
+- [ ] Basic RAG examples with local embeddings
+- [ ] Text chunking and processing
+- [ ] Local vector store operations (FAISS)
+- [ ] Cost analysis calculations
+- [ ] Simple NLP operations
+
+*** Level 2: Docker + PostgreSQL (Limited OSes)
+- [ ] SQL Agent demonstrations
+- [ ] Database introspection
+- [ ] Text-to-SQL examples
+- [ ] Data analysis queries
+
+*** Level 3: LocalStack (macOS primary)
+- [ ] S3 bucket operations
+- [ ] DynamoDB integration
+- [ ] Mock Bedrock API calls
+- [ ] Full RAG pipeline with AWS services
+
+*** Level 4: Full AWS Environment (macOS with dev profile)
+- [ ] Real Bedrock API calls
+- [ ] Production S3 operations
+- [ ] CloudWatch monitoring
+- [ ] Cost tracking with real metrics
+
+* OS-Specific Notes
+
+** FreeBSD 14.2
+- Python packages should work natively
+- Docker support limited - may need jails or bhyve
+- Focus on Level 1 exercises
+
+** Linux on Raspberry Pi (aarch64)
+- Access via Tailscale
+- Python packages compatible with ARM64
+- Docker available but resource-constrained
+- Can handle Levels 1-2
+
+** macOS (M1 MacBook Pro)
+- Full Docker Desktop support
+- LocalStack runs well on ARM64
+- Primary development environment
+- All levels supported
+
+* Setup Verification Commands
+
+** Level 1: Python Only
+#+begin_src bash
+# Verify Python environment
+python --version
+pip list | grep -E "(langchain|sentence-transformers|faiss-cpu)"
+
+# Test basic imports
+python -c "from src.rag.embeddings import EmbeddingGenerator; print('✓ Embeddings OK')"
+python -c "from src.rag.chunking import SimpleChunker; print('✓ Chunking OK')"
+python -c "from src.utils.cost_calculator import RAGCostEstimator; print('✓ Cost Calculator OK')"
+#+end_src
+
+** Level 2: Docker + PostgreSQL
+#+begin_src bash
+# Check Docker
+docker --version
+docker compose version
+
+# Start PostgreSQL only
+docker compose up -d postgres
+
+# Test connection
+psql -h localhost -U workshop_user -d workshop_db -c "SELECT version();"
+#+end_src
+
+** Level 3: LocalStack
+#+begin_src bash
+# Start LocalStack
+docker compose up -d localstack
+
+# Wait for services
+sleep 10
+
+# Test S3
+awslocal s3 ls
+awslocal s3 mb s3://test-bucket
+
+# Test Bedrock (mock)
+awslocal bedrock list-foundation-models
+#+end_src
+
+** Level 4: Full AWS
+#+begin_src bash
+# Configure AWS profile
+export AWS_PROFILE=dev
+
+# Test real AWS access
+aws s3 ls
+aws bedrock list-foundation-models --region us-east-1
+#+end_src
+
+* Exercise Compatibility
+
+| Exercise | FreeBSD | RPi Linux | macOS | Requirements |
+|----------+---------+-----------+-------+--------------|
+| Basic RAG | ✓ | ✓ | ✓ | Python only |
+| Embeddings | ✓ | ✓ | ✓ | Python only |
+| Chunking | ✓ | ✓ | ✓ | Python only |
+| Cost Analysis | ✓ | ✓ | ✓ | Python only |
+| Text-to-SQL | ⚠ | ✓ | ✓ | PostgreSQL |
+| Advanced RAG | ⚠ | ✓ | ✓ | PostgreSQL |
+| LocalStack RAG | ✗ | ⚠ | ✓ | Docker + LocalStack |
+| AWS Integration | ✗ | ✗ | ✓ | AWS Account |
+
+Legend: ✓ = Supported, ⚠ = Limited support, ✗ = Not supported
+
+* Testing Checklist
+
+** Phase 1: Python-Only Testing (All OSes)
+- [ ] FreeBSD: Install Python dependencies
+- [ ] FreeBSD: Run notebook 01 (basic RAG)
+- [ ] FreeBSD: Run notebook 05 (cost analysis)
+- [ ] RPi: Install Python dependencies via uv
+- [ ] RPi: Run notebook 01 (basic RAG)
+- [ ] RPi: Test embedding generation
+- [ ] macOS: Verify all Python imports
+
+** Phase 2: Database Testing (RPi + macOS)
+- [ ] RPi: Start PostgreSQL container
+- [ ] RPi: Initialize sample database
+- [ ] RPi: Run notebook 03 (text-to-SQL basics)
+- [ ] macOS: Full PostgreSQL integration
+
+** Phase 3: LocalStack Testing (macOS)
+- [ ] macOS: Start full docker-compose stack
+- [ ] macOS: Verify LocalStack services
+- [ ] macOS: Run full RAG pipeline with mocked AWS
+- [ ] macOS: Test S3 storage operations
+
+** Phase 4: AWS Testing (macOS)
+- [ ] macOS: Configure dev profile
+- [ ] macOS: Test Bedrock API access
+- [ ] macOS: Run cost tracking with real usage
+- [ ] macOS: Verify CloudWatch integration
+
+* Known Limitations
+
+** FreeBSD
+- No Docker support without significant setup
+- Focus on pure Python exercises
+- Can use remote PostgreSQL if available
+
+** Raspberry Pi
+- Limited RAM may affect large model operations
+- Docker available but resource-constrained
+- Best for Levels 1-2 exercises
+
+** General ARM64 Considerations
+- Some Python packages may need compilation
+- LocalStack fully supports ARM64
+- Bedrock models work identically on ARM64
+
+* Next Steps
+
+1. Create OS-specific setup guides
+2. Tag exercises with compatibility levels
+3. Add fallback options for limited environments
+4. Create minimal test suite for each OS
+5. Document resource requirements
+
+* Notes
+
+- Dev profile added to .env for AWS testing
+- Tailscale enables easy RPi access
+- Progressive enhancement approach ensures maximum compatibility
+- Focus on learning concepts over infrastructure

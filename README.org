@@ -16,10 +16,23 @@ This hands-on workshop guides you through building production-ready Retrieval Au
 
 ** Prerequisites
 
+*** Minimum Requirements (All Operating Systems)
 - Python 3.11+
-- Docker Desktop running
-- AWS CLI v2 configured
-- Basic familiarity with Python and AWS services
+- 2GB RAM (4GB recommended)
+- 5GB disk space
+- Basic familiarity with Python
+
+*** Additional Requirements by Level
+- *Level 1 (Python Only)*: No additional requirements
+- *Level 2*: Docker and Docker Compose
+- *Level 3*: LocalStack (via Docker)
+- *Level 4*: AWS Account with configured credentials
+
+*** Supported Operating Systems
+- ✅ macOS (Intel/Apple Silicon) - All levels
+- ✅ Linux (x86_64/ARM64) - Levels 1-3
+- ✅ FreeBSD - Level 1 only
+- ✅ Windows WSL2 - Levels 1-3
 
 ** Quick Start
 
@@ -40,7 +53,12 @@ make localstack-up
 make download-data  # Downloads Roget's Thesaurus PDF
 #+END_SRC
 
-*** 4. Run Your First RAG Pipeline
+*** 4. Test Your System Compatibility
+#+BEGIN_SRC shell
+make test-compatibility  # Check if your system can run the workshop
+#+END_SRC
+
+*** 5. Run Your First RAG Pipeline
 #+BEGIN_SRC shell
 make run-rag-pipeline
 #+END_SRC

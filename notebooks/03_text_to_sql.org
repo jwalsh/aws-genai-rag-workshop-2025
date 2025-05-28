@@ -1,7 +1,7 @@
 #+TITLE: Module 3: Text-to-SQL with Natural Language Database Queries
 #+AUTHOR: Jason Walsh
 #+EMAIL: j@wal.sh
-#+PROPERTY: header-args:python :tangle yes :results output :mkdirp yes
+#+PROPERTY: header-args:python :results output :mkdirp yes
 
 * Introduction to Text-to-SQL
 
@@ -27,9 +27,11 @@ Text-to-SQL bridges the gap between natural language and structured database que
 
 Let's start by setting up our environment and importing necessary libraries.
 
-#+BEGIN_SRC python :tangle 03_text_to_sql/setup.py
+#+BEGIN_SRC python
 import os
 import sys
+sys.path.append('..')  # Add parent directory to path
+
 import json
 import logging
 import psycopg2
@@ -39,11 +41,8 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-# Add src to path for imports
-sys.path.append('../src')
-
-from agents.sql_agent import SQLAgent, QueryResult, DatabaseIntrospector
-from utils.aws_client import get_aws_client
+from src.agents.sql_agent import SQLAgent, QueryResult, DatabaseIntrospector
+from src.utils.aws_client import get_bedrock_runtime_client, get_s3_client
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -72,49 +71,34 @@ print(f"AWS Region: {AWS_REGION}")
 
 Before we can convert natural language to SQL, we need to understand our database structure.
 
-#+BEGIN_SRC python :tangle 03_text_to_sql/schema_exploration.py
-def explore_database_schema():
-    """Explore and document the database schema."""
-    try:
-        # Initialize database introspector
-        introspector = DatabaseIntrospector(DB_CONFIG)
-        schema_info = introspector.get_schema_info('workshop')
-        
-        print("=� Database Schema Analysis")
-        print("=" * 50)
-        
+#+BEGIN_SRC python
+# Explore database schema using the project's SQL agent
+try:
+    # Initialize database introspector
+    introspector = DatabaseIntrospector(DB_CONFIG)
+    schema_info = introspector.get_schema_info('public')  # Default PostgreSQL schema
+    
+    print("Database Schema Analysis")
+    print("=" * 50)
+    
+    if not schema_info:
+        print("No tables found. Database may need initialization.")
+    else:
         for table_name, table_info in schema_info.items():
-            print(f"\n=9 Table: {table_name}")
-            print(f"   Columns: {len(table_info.columns)}")
+            print(f"\nTable: {table_name}")
+            print(f"  Columns: {len(table_info.columns)}")
             
-            # Display columns with types
-            print("   =� Columns:")
-            for col in table_info.columns:
-                nullable_str = "NULL" if col['nullable'] else "NOT NULL"
-                default_str = f" DEFAULT {col['default']}" if col['default'] else ""
-                print(f"      " {col['name']} ({col['type']}) {nullable_str}{default_str}")
-            
-            # Display foreign key relationships
-            if table_info.foreign_keys:
-                print("   = Foreign Key Relationships:")
-                for fk in table_info.foreign_keys:
-                    print(f"      " {fk['column']} � {fk['references_table']}.{fk['references_column']}")
-        
-        return schema_info
-        
-    except Exception as e:
-        logger.error(f"Error exploring schema: {e}")
-        return None
-
-# Run schema exploration
-schema_info = explore_database_schema()
+except Exception as e:
+    logger.error(f"Error exploring schema: {e}")
+    print(f"Could not connect to database. Error: {e}")
 #+END_SRC
 
 * Sample Data Analysis
 
 Let's examine the sample data to understand the content and relationships.
 
-#+BEGIN_SRC python :tangle 03_text_to_sql/data_analysis.py
+#+BEGIN_SRC python
+# Analyze sample data in the database
 def analyze_sample_data():
     """Analyze sample data in the database."""
     try:
@@ -198,7 +182,8 @@ analyze_sample_data()
 
 Now let's initialize our SQL Agent and test its basic functionality.
 
-#+BEGIN_SRC python :tangle 03_text_to_sql/sql_agent_init.py
+#+BEGIN_SRC python
+# Initialize SQL Agent using the project's implementation
 def initialize_sql_agent():
     """Initialize and test the SQL Agent."""
     try:
@@ -236,7 +221,8 @@ sql_agent = initialize_sql_agent()
 
 Let's test the SQL Agent with various natural language queries.
 
-#+BEGIN_SRC python :tangle 03_text_to_sql/nl_query_testing.py
+#+BEGIN_SRC python
+# Test natural language queries using the SQL Agent
 def test_natural_language_queries(agent):
     """Test the SQL Agent with various natural language queries."""
     if not agent:
@@ -322,7 +308,7 @@ test_natural_language_queries(sql_agent)
 
 Let's examine the security features of our SQL Agent.
 
-#+BEGIN_SRC python :tangle 03_text_to_sql/security_testing.py
+#+BEGIN_SRC python 
 def test_security_features(agent):
     """Test SQL injection prevention and query validation."""
     if not agent:
@@ -389,7 +375,7 @@ test_security_features(sql_agent)
 
 Let's explore more advanced query patterns and edge cases.
 
-#+BEGIN_SRC python :tangle 03_text_to_sql/advanced_patterns.py
+#+BEGIN_SRC python 
 def test_advanced_query_patterns(agent):
     """Test advanced SQL query patterns and edge cases."""
     if not agent:
@@ -463,7 +449,7 @@ test_advanced_query_patterns(sql_agent)
 
 Let's create an interactive interface for testing custom queries.
 
-#+BEGIN_SRC python :tangle 03_text_to_sql/interactive_interface.py
+#+BEGIN_SRC python 
 def create_interactive_interface(agent):
     """Create an interactive interface for testing queries."""
     if not agent:
@@ -542,7 +528,7 @@ print("=� To start the interactive interface, run: create_interactive_interfac
 
 Let's analyze and optimize query performance.
 
-#+BEGIN_SRC python :tangle 03_text_to_sql/performance_optimization.py
+#+BEGIN_SRC python 
 def analyze_query_performance(agent):
     """Analyze and optimize query performance."""
     if not agent:
@@ -627,7 +613,7 @@ performance_results = analyze_query_performance(sql_agent)
 
 Let's test error handling and recovery mechanisms.
 
-#+BEGIN_SRC python :tangle error_handling.py
+#+BEGIN_SRC python 
 def test_error_handling(agent):
     """Test error handling and recovery mechanisms."""
     if not agent:
@@ -694,7 +680,7 @@ test_error_handling(sql_agent)
 
 Let's test integration with AWS Bedrock and other services.
 
-#+BEGIN_SRC python :tangle aws_integration.py
+#+BEGIN_SRC python 
 def test_aws_integration():
     """Test integration with AWS services."""
     print("  Testing AWS Integration")
@@ -751,7 +737,7 @@ test_aws_integration()
 
 Here are hands-on exercises to practice Text-to-SQL concepts.
 
-#+BEGIN_SRC python :tangle workshop_exercises.py
+#+BEGIN_SRC python 
 def workshop_exercises():
     """Interactive workshop exercises for participants."""
     print("=� Workshop Exercises")
@@ -825,7 +811,7 @@ workshop_exercises()
 
 * Summary and Best Practices
 
-#+BEGIN_SRC python :tangle summary_best_practices.py
+#+BEGIN_SRC python 
 def display_summary_and_best_practices():
     """Display summary and best practices for Text-to-SQL."""
     

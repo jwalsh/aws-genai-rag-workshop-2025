@@ -1,0 +1,545 @@
+#+TITLE: Project Dependencies - Literate Programming Examples
+#+AUTHOR: aygp-dr
+#+DATE: 2025-05-28
+#+PROPERTY: header-args:python :results output :session deps :mkdirp yes
+
+* Overview
+
+This document provides literate programming examples for the core dependencies used in the AWS GenAI RAG Workshop. Each section includes minimal working examples and links to official documentation.
+
+* Setup
+
+#+begin_src python :results silent
+import sys
+sys.path.append('/home/aygp-dr/projects/jwalsh/aws-genai-rag-workshop-2025')
+#+end_src
+
+* Core AWS Integration
+
+** boto3 - AWS SDK for Python
+[[https://boto3.amazonaws.com/v1/documentation/api/latest/index.html][Official Documentation]]
+
+#+begin_src python
+import boto3
+
+# Create a client (using LocalStack in this example)
+client = boto3.client(
+    'bedrock-runtime',
+    endpoint_url='http://localhost:4566',
+    region_name='us-east-1'
+)
+
+print("boto3 client created successfully")
+print(f"Service: {client._service_model.service_name}")
+print(f"Region: {client._client_config.region_name}")
+#+end_src
+
+** awscli-local - LocalStack AWS CLI
+[[https://github.com/localstack/awscli-local][Official Documentation]]
+
+This is a CLI tool wrapper for AWS CLI that points to LocalStack.
+
+#+begin_src python
+import subprocess
+
+# Example of using awslocal from Python
+result = subprocess.run(
+    ['awslocal', 's3', 'ls'],
+    capture_output=True,
+    text=True
+)
+print("awslocal command executed")
+print(f"Return code: {result.returncode}")
+#+end_src
+
+* LangChain Ecosystem
+
+** langchain - Core Framework
+[[https://python.langchain.com/docs/get_started/introduction][Official Documentation]]
+
+#+begin_src python
+from langchain.schema import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+# Create sample document
+doc = Document(
+    page_content="LangChain is a framework for developing applications powered by language models.",
+    metadata={"source": "example"}
+)
+
+# Text splitting example
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=50,
+    chunk_overlap=10
+)
+chunks = splitter.split_documents([doc])
+print(f"Original doc length: {len(doc.page_content)}")
+print(f"Number of chunks: {len(chunks)}")
+print(f"First chunk: {chunks[0].page_content}")
+#+end_src
+
+** langchain-aws - AWS Integration
+[[https://python.langchain.com/docs/integrations/platforms/aws][Official Documentation]]
+
+#+begin_src python
+from langchain_aws import BedrockEmbeddings
+
+# Example configuration (would connect to AWS Bedrock)
+# embeddings = BedrockEmbeddings(
+#     region_name="us-east-1",
+#     model_id="amazon.titan-embed-text-v1"
+# )
+print("BedrockEmbeddings imported successfully")
+print("Use this for AWS Bedrock model integration")
+#+end_src
+
+** langchain-community - Community Integrations
+[[https://python.langchain.com/docs/integrations/providers][Official Documentation]]
+
+#+begin_src python
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.vectorstores import FAISS
+
+print("Available community integrations:")
+print("- Document loaders (PDF, CSV, JSON, etc.)")
+print("- Vector stores (FAISS, Chroma, Pinecone)")
+print("- LLM providers")
+print("- Embedding models")
+#+end_src
+
+* Machine Learning & Embeddings
+
+** sentence-transformers - State-of-the-art Embeddings
+[[https://www.sbert.net/][Official Documentation]]
+
+#+begin_src python
+from sentence_transformers import SentenceTransformer
+
+# Load a small model
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Example sentences
+sentences = [
+    "This is an example sentence",
+    "Each sentence is converted to embeddings",
+    "Similar sentences have similar embeddings"
+]
+
+# Generate embeddings
+embeddings = model.encode(sentences)
+print(f"Model: {model}")
+print(f"Number of sentences: {len(sentences)}")
+print(f"Embedding shape: {embeddings.shape}")
+print(f"Embedding dimension: {embeddings.shape[1]}")
+#+end_src
+
+** faiss-cpu - Vector Similarity Search
+[[https://github.com/facebookresearch/faiss][Official Documentation]]
+
+#+begin_src python
+import faiss
+import numpy as np
+
+# Create random vectors for demonstration
+dimension = 128
+n_vectors = 1000
+vectors = np.random.random((n_vectors, dimension)).astype('float32')
+
+# Create FAISS index
+index = faiss.IndexFlatL2(dimension)
+index.add(vectors)
+
+# Search for similar vectors
+query = np.random.random((1, dimension)).astype('float32')
+distances, indices = index.search(query, k=5)
+
+print(f"Index type: {type(index).__name__}")
+print(f"Number of vectors: {index.ntotal}")
+print(f"Top 5 similar vector indices: {indices[0]}")
+print(f"Distances: {distances[0]}")
+#+end_src
+
+** spacy - Natural Language Processing
+[[https://spacy.io/usage][Official Documentation]]
+
+#+begin_src python
+import spacy
+
+# Note: In production, you'd download a model first:
+# python -m spacy download en_core_web_sm
+
+print("SpaCy provides:")
+print("- Tokenization")
+print("- Part-of-speech tagging")
+print("- Named entity recognition")
+print("- Dependency parsing")
+print("- And much more!")
+
+# Example usage (requires model):
+# nlp = spacy.load("en_core_web_sm")
+# doc = nlp("Apple is looking at buying U.K. startup for $1 billion")
+# for ent in doc.ents:
+#     print(ent.text, ent.label_)
+#+end_src
+
+* Data Processing
+
+** pandas - Data Analysis
+[[https://pandas.pydata.org/docs/][Official Documentation]]
+
+#+begin_src python
+import pandas as pd
+
+# Create sample data
+data = {
+    'query': ['What is RAG?', 'How does embedding work?', 'Explain vector search'],
+    'response_time_ms': [150, 200, 175],
+    'relevance_score': [0.95, 0.88, 0.92]
+}
+
+df = pd.DataFrame(data)
+print("DataFrame created:")
+print(df)
+print(f"\nAverage response time: {df['response_time_ms'].mean():.2f} ms")
+print(f"Average relevance score: {df['relevance_score'].mean():.2f}")
+#+end_src
+
+** numpy - Numerical Computing
+[[https://numpy.org/doc/stable/][Official Documentation]]
+
+#+begin_src python
+import numpy as np
+
+# Vector operations example
+vector_a = np.array([1, 2, 3])
+vector_b = np.array([4, 5, 6])
+
+# Dot product (similarity)
+dot_product = np.dot(vector_a, vector_b)
+
+# Cosine similarity
+cos_sim = dot_product / (np.linalg.norm(vector_a) * np.linalg.norm(vector_b))
+
+print(f"Vector A: {vector_a}")
+print(f"Vector B: {vector_b}")
+print(f"Dot product: {dot_product}")
+print(f"Cosine similarity: {cos_sim:.4f}")
+#+end_src
+
+* Database & Storage
+
+** sqlalchemy - SQL Toolkit
+[[https://docs.sqlalchemy.org/][Official Documentation]]
+
+#+begin_src python
+from sqlalchemy import create_engine, Column, Integer, String, Float
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+Base = declarative_base()
+
+# Define a model
+class QueryLog(Base):
+    __tablename__ = 'query_logs'
+    
+    id = Column(Integer, primary_key=True)
+    query = Column(String)
+    response_time = Column(Float)
+    model_used = Column(String)
+
+# Create in-memory database
+engine = create_engine('sqlite:///:memory:')
+Base.metadata.create_all(engine)
+
+print("SQLAlchemy ORM example:")
+print(f"Table name: {QueryLog.__tablename__}")
+print(f"Columns: {[c.name for c in QueryLog.__table__.columns]}")
+#+end_src
+
+** psycopg2-binary - PostgreSQL Adapter
+[[https://www.psycopg.org/docs/][Official Documentation]]
+
+#+begin_src python
+# Example connection (requires PostgreSQL)
+# import psycopg2
+
+# conn = psycopg2.connect(
+#     host="localhost",
+#     database="workshop_db",
+#     user="user",
+#     password="password"
+# )
+
+print("psycopg2 is used for:")
+print("- Connecting to PostgreSQL databases")
+print("- Executing SQL queries")
+print("- Managing transactions")
+print("- Handling PostgreSQL-specific features")
+#+end_src
+
+* Web Interface & Visualization
+
+** streamlit - Web Apps
+[[https://docs.streamlit.io/][Official Documentation]]
+
+#+begin_src python
+# Streamlit runs as a separate process
+print("Streamlit example structure:")
+print("""
+import streamlit as st
+
+st.title('RAG Demo')
+query = st.text_input('Enter your question:')
+if st.button('Search'):
+    # Process query
+    st.write(f'Results for: {query}')
+""")
+
+print("\nRun with: streamlit run app.py")
+#+end_src
+
+** plotly - Interactive Visualizations
+[[https://plotly.com/python/][Official Documentation]]
+
+#+begin_src python
+import plotly.graph_objects as go
+
+# Create sample data
+metrics = ['Precision', 'Recall', 'F1-Score']
+values = [0.85, 0.78, 0.81]
+
+# Create bar chart
+fig = go.Figure(data=[
+    go.Bar(x=metrics, y=values, text=values, textposition='auto')
+])
+
+fig.update_layout(
+    title='RAG Performance Metrics',
+    yaxis=dict(range=[0, 1]),
+    showlegend=False
+)
+
+print("Plotly figure created")
+print(f"Metrics shown: {metrics}")
+print(f"Values: {values}")
+# In Jupyter/Streamlit: fig.show()
+#+end_src
+
+* PDF Processing
+
+** PyPDF2 - PDF Manipulation
+[[https://pypdf2.readthedocs.io/][Official Documentation]]
+
+#+begin_src python
+import PyPDF2
+from io import BytesIO
+
+# Create a simple PDF in memory for demo
+print("PyPDF2 capabilities:")
+print("- Extract text from PDFs")
+print("- Merge/split PDF files")
+print("- Rotate pages")
+print("- Extract metadata")
+
+# Example structure:
+# with open('document.pdf', 'rb') as file:
+#     reader = PyPDF2.PdfReader(file)
+#     print(f"Pages: {len(reader.pages)}")
+#     text = reader.pages[0].extract_text()
+#+end_src
+
+** pdfplumber - Advanced PDF Extraction
+[[https://github.com/jsvine/pdfplumber][Official Documentation]]
+
+#+begin_src python
+# pdfplumber offers more advanced extraction
+print("pdfplumber advantages over PyPDF2:")
+print("- Better text extraction accuracy")
+print("- Table extraction capabilities")
+print("- Access to character-level information")
+print("- Better handling of complex layouts")
+
+# Example:
+# import pdfplumber
+# with pdfplumber.open('document.pdf') as pdf:
+#     page = pdf.pages[0]
+#     text = page.extract_text()
+#     tables = page.extract_tables()
+#+end_src
+
+* Search & Ranking
+
+** rank-bm25 - BM25 Ranking
+[[https://github.com/dorianbrown/rank_bm25][Official Documentation]]
+
+#+begin_src python
+from rank_bm25 import BM25Okapi
+
+# Example documents
+documents = [
+    "RAG combines retrieval and generation",
+    "Vector search finds similar documents",
+    "BM25 is a ranking function",
+    "Embeddings represent text as vectors"
+]
+
+# Tokenize documents
+tokenized_docs = [doc.lower().split() for doc in documents]
+
+# Create BM25 index
+bm25 = BM25Okapi(tokenized_docs)
+
+# Search
+query = "vector search"
+query_tokens = query.lower().split()
+scores = bm25.get_scores(query_tokens)
+
+# Get top results
+top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:2]
+
+print(f"Query: '{query}'")
+print("\nTop results:")
+for idx in top_indices:
+    print(f"- Score {scores[idx]:.2f}: {documents[idx]}")
+#+end_src
+
+** rouge - Evaluation Metrics
+[[https://github.com/pltrdy/rouge][Official Documentation]]
+
+#+begin_src python
+from rouge import Rouge
+
+# Initialize ROUGE scorer
+rouge = Rouge()
+
+# Example texts
+reference = "RAG systems combine retrieval and generation for better responses"
+hypothesis = "RAG combines document retrieval with text generation"
+
+# Calculate scores
+scores = rouge.get_scores(hypothesis, reference)[0]
+
+print("ROUGE Scores:")
+for metric, values in scores.items():
+    print(f"{metric}: Precision={values['p']:.3f}, Recall={values['r']:.3f}, F1={values['f']:.3f}")
+#+end_src
+
+* Configuration & Validation
+
+** pydantic - Data Validation
+[[https://docs.pydantic.dev/latest/][Official Documentation]]
+
+#+begin_src python
+from pydantic import BaseModel, Field, validator
+from typing import Optional, List
+
+class RAGConfig(BaseModel):
+    model_name: str = Field(..., description="LLM model to use")
+    chunk_size: int = Field(default=500, gt=0, description="Text chunk size")
+    top_k: int = Field(default=5, ge=1, le=20, description="Number of results")
+    temperature: float = Field(default=0.7, ge=0, le=1)
+    
+    @validator('model_name')
+    def validate_model(cls, v):
+        allowed = ['claude-3', 'gpt-4', 'llama-2']
+        if v not in allowed:
+            raise ValueError(f"Model must be one of {allowed}")
+        return v
+
+# Example usage
+config = RAGConfig(model_name="claude-3", chunk_size=1000)
+print(f"Config created: {config}")
+print(f"JSON schema:\n{config.model_json_schema()}")
+#+end_src
+
+** python-dotenv - Environment Management
+[[https://github.com/theskumar/python-dotenv][Official Documentation]]
+
+#+begin_src python
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
+
+# Example usage
+print("Environment variables loaded")
+print("Example .env file structure:")
+print("""
+AWS_ACCESS_KEY_ID=your_key
+AWS_SECRET_ACCESS_KEY=your_secret
+AWS_DEFAULT_REGION=us-east-1
+BEDROCK_MODEL_ID=anthropic.claude-3
+""")
+
+# Access variables
+region = os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
+print(f"Region from env: {region}")
+#+end_src
+
+* Development Tools
+
+** pytest - Testing Framework
+[[https://docs.pytest.org/][Official Documentation]]
+
+#+begin_src python
+# Example test structure
+print("""Example pytest test:
+
+def test_embedding_dimension():
+    from sentence_transformers import SentenceTransformer
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    embeddings = model.encode(['test'])
+    assert embeddings.shape[1] == 384
+
+def test_rag_pipeline():
+    from src.rag.pipeline import RAGPipeline
+    pipeline = RAGPipeline()
+    response = pipeline.query("test question")
+    assert response is not None
+    assert 'answer' in response
+""")
+
+print("\nRun tests with: pytest -v")
+#+end_src
+
+** black & ruff - Code Formatting
+[[https://black.readthedocs.io/][Black Documentation]] | [[https://docs.astral.sh/ruff/][Ruff Documentation]]
+
+#+begin_src python
+print("Code formatting tools:")
+print("\nBlack - The uncompromising formatter:")
+print("  black src/ --line-length 100")
+print("\nRuff - Fast Python linter:")
+print("  ruff check src/")
+print("  ruff check --fix src/")
+print("\nBoth are configured in pyproject.toml")
+#+end_src
+
+* LocalStack Development
+
+** localstack - AWS Service Emulation
+[[https://docs.localstack.cloud/][Official Documentation]]
+
+#+begin_src python
+print("LocalStack provides local AWS services:")
+print("- S3 for storage")
+print("- DynamoDB for NoSQL")
+print("- Lambda for functions")
+print("- Bedrock for AI models")
+print("- And many more...")
+print("\nStart with: localstack start")
+print("Or use docker-compose.yml")
+#+end_src
+
+* Summary
+
+This document demonstrates the core functionality of each major dependency in the project. For production use:
+
+1. Install all dependencies: =uv sync=
+2. Set up environment variables in =.env=
+3. Start LocalStack for AWS services
+4. Run tests with =pytest=
+5. Format code with =black= and =ruff=
+
+Each library serves a specific purpose in building a production-ready RAG system, from AWS integration to ML embeddings, data processing, and web interfaces.

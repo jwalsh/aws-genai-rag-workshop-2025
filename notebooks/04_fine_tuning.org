@@ -1,7 +1,7 @@
 #+TITLE: Fine-tuning Models for Domain-Specific RAG
 #+AUTHOR: aygp-dr
 #+DATE: 2025-05-26
-#+PROPERTY: header-args:python :tangle yes :results output :mkdirp yes
+#+PROPERTY: header-args:python :results output :mkdirp yes
 
 * Overview
 
@@ -23,12 +23,10 @@ By the end of this notebook, you will:
 
 * Setup
 
-#+begin_src python :tangle ../src/fine_tuning/__init__.py
-"""Fine-tuning utilities for RAG models."""
-#+end_src
+#+begin_src python
+import sys
+sys.path.append('..')  # Add parent directory to path
 
-#+begin_src python :tangle ../src/fine_tuning/data_preparation.py
-"""Data preparation for fine-tuning."""
 import json
 import random
 from typing import List, Dict, Tuple, Optional
@@ -230,7 +228,7 @@ print(df.head())
 
 ** Implementing Fine-tuning with Sentence Transformers
 
-#+begin_src python :tangle ../src/fine_tuning/embedding_finetuning.py
+#+begin_src python 
 """Fine-tuning embedding models for domain-specific RAG."""
 from sentence_transformers import SentenceTransformer, InputExample, losses
 from sentence_transformers.evaluation import EmbeddingSimilarityEvaluator
@@ -475,7 +473,7 @@ for metric, value in baseline_metrics.items():
 
 * Fine-tuning LLMs for RAG-Specific Tasks
 
-#+begin_src python :tangle ../src/fine_tuning/llm_finetuning.py
+#+begin_src python 
 """Fine-tuning LLMs for RAG-specific tasks."""
 import json
 from typing import List, Dict, Optional
@@ -708,7 +706,7 @@ for i, ex in enumerate(examples[:2]):
 
 * AWS Bedrock Custom Model Integration
 
-#+begin_src python :tangle ../src/fine_tuning/bedrock_custom.py
+#+begin_src python 
 """Integration with AWS Bedrock for custom models."""
 import boto3
 import json
