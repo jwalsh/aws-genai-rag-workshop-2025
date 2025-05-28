@@ -126,13 +126,6 @@ typecheck: ## Run type checking with mypy
 
 ##@ Notebooks
 
-notebook: ## Start Jupyter notebook server
-	$(UV) run jupyter notebook notebooks/
-
-convert-notebooks: ## Convert org notebooks to Python scripts (deprecated, use 'make tangle')
-	@echo "This target is deprecated. Please use 'make tangle' instead."
-	@$(MAKE) tangle
-
 tangle: ## Extract code from org notebooks into subdirectories
 	@echo "Tangling code from org notebooks..."
 	@find . -maxdepth 2 -name "*.org" -not -path "./.tmp/*" -not -path "./.support/*" | \
