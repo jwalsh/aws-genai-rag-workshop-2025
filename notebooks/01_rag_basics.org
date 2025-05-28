@@ -449,6 +449,92 @@ for module in ['rag', 'agents', 'guardrails', 'utils']:
     print(f"- src.{module}")
 #+END_SRC
 
+* Level 1 Test: Philosophical RAG Demo
+
+This test demonstrates a Python-only RAG system using philosophical texts. It requires no AWS services or Docker, making it perfect for testing basic RAG functionality.
+
+** Download Philosophy Texts
+
+First, download the philosophical texts we'll use:
+
+#+BEGIN_SRC shell
+# Download all philosophy texts (50MB+)
+make download-all
+
+# Or download individually:
+make download-philosophy
+#+END_SRC
+
+** Run Philosophical RAG Test
+
+This test queries across Boethius, Kant, Wittgenstein, and Roget's Thesaurus:
+
+#+BEGIN_SRC python
+from src.demos.philosophical_rag import PhilosophicalRAG
+
+# Create philosophical RAG system
+rag = PhilosophicalRAG()
+
+# Load texts (this may take a moment)
+print("Loading philosophical texts...")
+rag.load_texts()
+
+# Test query that should hit multiple sources
+query = "What is the relationship between language, meaning, and synonyms?"
+print(f"\nQuerying: {query}")
+rag.philosophical_query(query, n_results=6)
+
+# Test incuriosity concept across texts
+query2 = "What is incuriosity, indifference, or the absence of interest?"
+print(f"\n\nQuerying: {query2}")
+rag.philosophical_query(query2, n_results=6)
+
+# Fun workshop demo: Ideal software developer characteristics
+print("\n\n🎯 AWS Workshop Special: What makes a great developer?")
+print("="*60)
+
+# Query for developer qualities using philosophical language
+dev_query = "What are the qualities of demonstration, proof, experimentation, curiosity, and practical wisdom in creating artifacts?"
+print(f"\nQuerying: {dev_query}")
+rag.philosophical_query(dev_query, n_results=6)
+
+# Engineering mindset
+eng_query = "What is the nature of methodical investigation, systematic inquiry, and the art of construction?"
+print(f"\n\nQuerying: {eng_query}")
+rag.philosophical_query(eng_query, n_results=6)
+#+END_SRC
+
+** Expected Results
+
+You should see:
+1. **Cross-text connections**: Results from different philosophers
+2. **Thesaurus bridges**: Roget's entries connecting concepts
+3. **Relevance scores**: How well each chunk matches the query
+
+This demonstrates RAG working with:
+- Dense philosophical language
+- Cross-era terminology
+- Concept mapping via thesaurus
+- No external dependencies (Python-only)
+
+** Fun Workshop Demo: Developer Characteristics via Philosophy
+
+The developer characteristics queries show how RAG can find amusing connections between:
+- Roget's formal categorizations (demonstration, proof, experimentation)
+- Kant's systematic investigation and architectural thinking
+- Wittgenstein's focus on language and meaning construction
+- Boethius on wisdom and practical knowledge
+
+Perfect for showing workshop attendees that ideal developers should have:
+- **Curiosity** (vs. incuriosity/indifference from Roget entry 458)
+- **Perspicuity** (lucidity, clearness, intelligibility from Roget entry 570)
+- **Systematic thinking** (Kant's "articulation or organization")
+- **Experimental mindset** (Kant's empirical experimentation)
+- **Focus on demonstration** (proof, conclusiveness, apodixis from Roget)
+- **Practical wisdom** (Boethius on applied knowledge)
+
+As Roget entry 570 states: "perspicuous, clear, lucid, intelligible" - exactly what we want in code, documentation, and literate programming notebooks!
+
 * Summary
 
 In this module, we've built a comprehensive RAG system that includes:
