@@ -100,6 +100,7 @@ Created =src/demos/philosophical_rag.py= to demonstrate cross-document concept c
 
 * Environment Status
 
+** Linux (Raspberry Pi ARM64) - Earlier Session
 #+begin_src bash
 Platform: Linux (aarch64)
 Python: 3.11.2
@@ -107,3 +108,32 @@ Docker: Running
 LocalStack: Healthy
 AWS Environment: LocalStack (http://localhost:4566)
 #+end_src
+
+** macOS (M1 MacBook Pro ARM64) - Latest Session
+#+begin_src bash
+Platform: Darwin 24.1.0 (macOS on M1)
+Machine: arm64
+Python: 3.12.8 (via uv)
+Docker: Not checked yet
+LocalStack: Not tested yet
+AWS Environment: Not configured yet
+#+end_src
+
+*** macOS Level 1 Testing Results
+✅ Level 1 (Python-only): PASSED
+- Compatibility test: 10/10 tests pass
+- Simple RAG pipeline: Working
+- Embeddings: Dimension 384
+- Cost calculation: Working
+- Key finding: Python 3.13 incompatible with numpy 1.26.4, used Python 3.12 via uv
+- All imports successful (RAG, embeddings, chunking, vector store, cost calculator)
+
+* Updated Multi-OS Testing Progress
+
+| OS | Level 1 (Python) | Level 2 (Docker+PG) | Level 3 (LocalStack) | Level 4 (AWS) |
+|----+------------------+---------------------+----------------------+---------------|
+| FreeBSD 14.2 | Pending | N/A | N/A | N/A |
+| Linux RPi | ✅ Passed | Pending | Pending | N/A |
+| macOS M1 | ✅ Passed | Pending | Pending | Pending |
+
+Next: Test Level 1 on FreeBSD 14.2 environment

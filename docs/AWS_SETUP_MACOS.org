@@ -1,12 +1,12 @@
-# AWS Setup for macOS
+* AWS Setup for macOS
 
-## Fixing AWS Credentials Parse Error
+** Fixing AWS Credentials Parse Error
 
 If you're getting "Unable to parse config file" errors, here's how to fix it:
 
-### Quick Fix
+*** Quick Fix
 
-```bash
+#+begin_src bash
 # Since you already backed up your credentials
 cd ~/aws-genai-rag-workshop-2025
 
@@ -36,20 +36,20 @@ chmod 600 ~/.aws/credentials
 # Test it works
 aws --version
 aws sts get-caller-identity --profile dev
-```
+#+end_src
 
-### Common Issues
+*** Common Issues
 
-1. **Duplicate section names** - Each profile name must be unique
-2. **Missing equals signs** - Format must be `key = value` with spaces
-3. **Extra line breaks** - Can cause parsing issues
-4. **Wrong permissions** - Must be 600 (read/write for owner only)
+1. *Duplicate section names* - Each profile name must be unique
+2. *Missing equals signs* - Format must be ~key = value~ with spaces
+3. *Extra line breaks* - Can cause parsing issues
+4. *Wrong permissions* - Must be 600 (read/write for owner only)
 
-## Workshop AWS Setup Options
+** Workshop AWS Setup Options
 
-### Option 1: Using .env file (Recommended for workshop)
+*** Option 1: Using .env file (Recommended for workshop)
 
-```bash
+#+begin_src bash
 # In the workshop directory
 cp .env.example .env
 
@@ -57,63 +57,63 @@ cp .env.example .env
 AWS_ACCESS_KEY_ID=your_actual_key
 AWS_SECRET_ACCESS_KEY=your_actual_secret
 AWS_DEFAULT_REGION=us-east-1
-```
+#+end_src
 
-### Option 2: Using AWS Profile
+*** Option 2: Using AWS Profile
 
-```bash
+#+begin_src bash
 # Set the profile in your shell
 export AWS_PROFILE=dev
 
 # Or add to .env
 echo "AWS_PROFILE=dev" >> .env
-```
+#+end_src
 
-### Option 3: LocalStack Only (No AWS needed)
+*** Option 3: LocalStack Only (No AWS needed)
 
-```bash
+#+begin_src bash
 # Use the default .env with LocalStack
 # AWS_ENDPOINT_URL=http://localhost:4566
 # AWS_ACCESS_KEY_ID=test
 # AWS_SECRET_ACCESS_KEY=test
-```
+#+end_src
 
-## Testing Your Setup
+** Testing Your Setup
 
-### Level 1: Python Only (No AWS needed)
-```bash
+*** Level 1: Python Only (No AWS needed)
+#+begin_src bash
 make test-compatibility
-```
+#+end_src
 
-### Level 3: LocalStack (Mock AWS)
-```bash
+*** Level 3: LocalStack (Mock AWS)
+#+begin_src bash
 make localstack-up
 make test-level3
-```
+#+end_src
 
-### Level 4: Real AWS
-```bash
+*** Level 4: Real AWS
+#+begin_src bash
 # Ensure credentials are working
 aws sts get-caller-identity --profile dev
 
 # Run AWS tests
 export AWS_PROFILE=dev
 make test-level4
-```
+#+end_src
 
-## Your System Info
+** Your System Info
 
 Based on your output:
-- **OS**: macOS 24.1.0 (Sequoia)
-- **Arch**: ARM64 (Apple Silicon M1)
-- **AWS CLI**: 2.22.16
+- *OS*: macOS 24.1.0 (Sequoia)
+- *Arch*: ARM64 (Apple Silicon M1)
+- *AWS CLI*: 2.22.16
 
 This is perfect for running all workshop levels!
 
-## Next Steps
+** Next Steps
 
 1. Fix the credentials file using the template above
-2. Copy your actual keys from `~/.aws/credentials.bak`
-3. Test with `aws sts get-caller-identity --profile dev`
-4. Start with `make test-level1` (no AWS needed)
+2. Copy your actual keys from ~~/.aws/credentials.bak~
+3. Test with ~aws sts get-caller-identity --profile dev~
+4. Start with ~make test-level1~ (no AWS needed)
 5. Progress through levels as desired

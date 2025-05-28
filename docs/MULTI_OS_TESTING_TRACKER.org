@@ -129,10 +129,12 @@ Legend: ✓ = Supported, ⚠ = Limited support, ✗ = Not supported
 - [ ] FreeBSD: Install Python dependencies
 - [ ] FreeBSD: Run notebook 01 (basic RAG)
 - [ ] FreeBSD: Run notebook 05 (cost analysis)
-- [ ] RPi: Install Python dependencies via uv
-- [ ] RPi: Run notebook 01 (basic RAG)
-- [ ] RPi: Test embedding generation
-- [ ] macOS: Verify all Python imports
+- [X] RPi: Install Python dependencies via uv (completed 2025-05-28)
+- [X] RPi: Run notebook 01 (basic RAG) (completed 2025-05-28)
+- [X] RPi: Test embedding generation (completed 2025-05-28)
+- [X] macOS: Verify all Python imports (completed 2025-05-28)
+- [X] macOS: Run test_compatibility.py - 10/10 tests passed
+- [X] macOS: Python 3.12.8 via uv (Python 3.13 incompatible with numpy 1.26.4)
 
 ** Phase 2: Database Testing (RPi + macOS)
 - [ ] RPi: Start PostgreSQL container
