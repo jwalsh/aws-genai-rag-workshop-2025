@@ -10,7 +10,9 @@
       "Bash(find:*)",
       "Bash(grep:*)",
       "Bash(sed:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(make lint)",
+      "Bash(make:*)"
     ],
     "deny": []
   }
