@@ -137,3 +137,94 @@ class AWSCostCalculator:
         df = df[df["timestamp"] >= cutoff]
 
         return df
+    
+    def estimate_rag_costs(self, num_documents: int, avg_doc_size_kb: float,
+                          queries_per_day: int, days: int = 30) -> dict:
+        """Estimate costs for a RAG application."""
+        # Estimate embeddings
+        avg_chunks_per_doc = max(1, int(avg_doc_size_kb * 1024 / 2000))  # ~2000 chars per chunk
+        total_chunks = num_documents * avg_chunks_per_doc
+        
+        # Embedding costs (one-time)
+        embedding_model = "amazon.titan-embed-text-v2:0"
+        embedding_cost = self.calculate_embedding_cost(
+            embedding_model,
+            ["sample"] * total_chunks  # Dummy texts for estimation
+        )
+        
+        # Query costs (recurring)
+        llm_model = "anthropic.claude-3-haiku-20240307"
+        query_cost_per_day = self.calculate_llm_cost(
+            llm_model,
+            "What is the meaning of life?" * 10,  # ~40 tokens
+            "The meaning of life is..." * 50  # ~200 tokens
+        )['total_cost'] * queries_per_day
+        
+        # Storage costs
+        storage_gb = (num_documents * avg_doc_size_kb) / (1024 * 1024)
+        storage_cost = self.calculate_storage_cost(
+            storage_gb,
+            queries_per_day * days * 5,  # 5 reads per query
+            total_chunks  # Initial writes
+        )
+        
+        return {
+            "setup_costs": {
+                "embedding_generation": embedding_cost['total_cost'],
+                "initial_storage": storage_cost['write_cost']
+            },
+            "monthly_costs": {
+                "queries": query_cost_per_day * days,
+                "storage": storage_cost['storage_cost'],
+                "reads": storage_cost['read_cost']
+            },
+            "total_monthly": query_cost_per_day * days + storage_cost['total_cost'],
+            "details": {
+                "documents": num_documents,
+                "chunks": total_chunks,
+                "queries_per_day": queries_per_day,
+                "storage_gb": round(storage_gb, 3)
+            }
+        }
+
+
+# CLI interface
+if __name__ == "__main__":
+    import click
+    
+    @click.command()
+    @click.option('--embeddings', default=1000, help='Number of embeddings')
+    @click.option('--queries', default=100, help='Number of queries per day')
+    @click.option('--storage-gb', default=0.1, help='Storage in GB')
+    @click.option('--days', default=30, help='Number of days')
+    def estimate(embeddings, queries, storage_gb, days):
+        """Estimate RAG application costs."""
+        calculator = AWSCostCalculator()
+        
+        # Estimate based on documents
+        avg_doc_size = 50  # KB
+        num_docs = int(embeddings / 10)  # Assume 10 chunks per doc
+        
+        costs = calculator.estimate_rag_costs(
+            num_documents=num_docs,
+            avg_doc_size_kb=avg_doc_size,
+            queries_per_day=queries,
+            days=days
+        )
+        
+        click.echo("\n=== AWS RAG Cost Estimation ===")
+        click.echo(f"\nSetup Costs (one-time):")
+        for key, value in costs['setup_costs'].items():
+            click.echo(f"  {key}: ${value:.4f}")
+        
+        click.echo(f"\nMonthly Costs:")
+        for key, value in costs['monthly_costs'].items():
+            click.echo(f"  {key}: ${value:.2f}")
+        
+        click.echo(f"\nTotal Monthly Cost: ${costs['total_monthly']:.2f}")
+        
+        click.echo(f"\nDetails:")
+        for key, value in costs['details'].items():
+            click.echo(f"  {key}: {value}")
+    
+    estimate()

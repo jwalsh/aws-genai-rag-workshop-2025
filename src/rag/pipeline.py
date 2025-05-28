@@ -5,9 +5,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..utils.aws_client import get_bedrock_runtime_client
-from .chunking import DocumentChunker
+from .chunking import SimpleChunker, SentenceChunker
 from .embeddings import EmbeddingGenerator
-from .retrieval import VectorRetriever
+from .vector_store import FAISSVectorStore
+import json
+import click
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +30,17 @@ class RAGPipeline:
 
     def __init__(self, config: RAGConfig):
         self.config = config
-        self.chunker = DocumentChunker(
-            chunk_size=config.chunk_size, chunk_overlap=config.chunk_overlap
+        self.chunker = SimpleChunker(
+            chunk_size=config.chunk_size, overlap=config.chunk_overlap
         )
-        self.embedder = EmbeddingGenerator(model=config.embedding_model)
-        self.retriever = VectorRetriever(k=config.retrieval_k)
-        self.bedrock = get_bedrock_runtime_client()
+        self.embedder = EmbeddingGenerator(
+            model_name=config.embedding_model,
+            use_bedrock="titan" in config.embedding_model
+        )
+        # Initialize vector store with embedding dimension
+        dimension = 384 if "MiniLM" in config.embedding_model else 1536
+        self.vector_store = FAISSVectorStore(dimension=dimension)
+        self.bedrock = None  # Lazy load when needed
 
     def process_documents(self, documents: list[str]) -> None:
         """Process and index documents."""
@@ -41,15 +48,22 @@ class RAGPipeline:
 
         # Chunk documents
         all_chunks = []
+        chunk_texts = []
         for doc in documents:
-            chunks = self.chunker.chunk_document(doc)
-            all_chunks.extend(chunks)
+            chunks = self.chunker.chunk_text(doc)
+            for chunk in chunks:
+                all_chunks.append(chunk)
+                chunk_texts.append(chunk['text'])
 
         # Generate embeddings
-        embeddings = self.embedder.generate_embeddings(all_chunks)
+        embeddings = self.embedder.generate(chunk_texts)
 
         # Store in vector database
-        self.retriever.add_documents(all_chunks, embeddings)
+        self.vector_store.add(
+            embeddings=embeddings,
+            documents=chunk_texts,
+            metadata=all_chunks
+        )
 
         logger.info(f"Indexed {len(all_chunks)} chunks")
 
@@ -57,8 +71,17 @@ class RAGPipeline:
         """Query the RAG system."""
         logger.info(f"Querying: {question}")
 
+        # Generate query embedding
+        query_embedding = self.embedder.generate(question)
+
         # Retrieve relevant chunks
-        relevant_chunks = self.retriever.retrieve(question)
+        results = self.vector_store.search(
+            query_embedding=query_embedding[0],
+            k=self.config.retrieval_k
+        )
+
+        # Extract documents
+        relevant_chunks = [r['document'] for r in results]
 
         # Build context
         context = "\n\n".join(relevant_chunks)
@@ -70,29 +93,83 @@ class RAGPipeline:
             "question": question,
             "answer": response,
             "sources": relevant_chunks,
-            "metadata": {"chunks_used": len(relevant_chunks), "model": self.config.embedding_model},
+            "scores": [r['score'] for r in results],
+            "metadata": {
+                "chunks_used": len(relevant_chunks),
+                "model": self.config.embedding_model
+            },
         }
 
     def _generate_response(self, question: str, context: str) -> str:
         """Generate response using Bedrock."""
+        if self.bedrock is None:
+            self.bedrock = get_bedrock_runtime_client()
+        
+        prompt = f"""Context information:
+{context}
 
-        # Call Bedrock for inference
-        # Implementation depends on specific model
-        return "Generated response based on context"
+Question: {question}
+
+Based on the context above, please provide a comprehensive answer to the question."""
+
+        try:
+            # Example for Claude model
+            body = json.dumps({
+                "prompt": f"\n\nHuman: {prompt}\n\nAssistant:",
+                "max_tokens_to_sample": 500,
+                "temperature": 0.7
+            })
+            
+            response = self.bedrock.invoke_model(
+                modelId="anthropic.claude-instant-v1",
+                body=body
+            )
+            
+            result = json.loads(response['body'].read())
+            return result.get('completion', 'Unable to generate response')
+        except Exception as e:
+            logger.error(f"Error generating response: {e}")
+            return f"Error: {str(e)}"
+
+
+@click.group()
+def cli():
+    """RAG Pipeline CLI."""
+    pass
+
+
+@cli.command()
+@click.option('--source', required=True, help='Source file or S3 path')
+@click.option('--chunks', default=100, help='Max chunks to process')
+def process(source: str, chunks: int):
+    """Process documents and create embeddings."""
+    config = RAGConfig()
+    pipeline = RAGPipeline(config)
+    
+    # Load document (simplified)
+    with open(source, 'r') as f:
+        text = f.read()
+    
+    pipeline.process_documents([text])
+    pipeline.vector_store.save("data/vector_store")
+    click.echo(f"Processed {source} into {pipeline.vector_store.size()} vectors")
+
+
+@cli.command()
+@click.option('--question', required=True, help='Question to ask')
+def query(question: str):
+    """Query the RAG system."""
+    config = RAGConfig()
+    pipeline = RAGPipeline(config)
+    
+    # Load vector store
+    pipeline.vector_store = FAISSVectorStore.load("data/vector_store")
+    
+    result = pipeline.query(question)
+    click.echo(f"\nQuestion: {result['question']}")
+    click.echo(f"\nAnswer: {result['answer']}")
+    click.echo(f"\nSources used: {len(result['sources'])}")
 
 
 if __name__ == "__main__":
-    # Demo usage
-    config = RAGConfig()
-    pipeline = RAGPipeline(config)
-
-    # Process sample documents
-    documents = [
-        "Amazon Bedrock is a fully managed service...",
-        "SageMaker provides machine learning capabilities...",
-    ]
-    pipeline.process_documents(documents)
-
-    # Query
-    result = pipeline.query("What is Amazon Bedrock?")
-    print(result)
+    cli()

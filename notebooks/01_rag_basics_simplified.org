@@ -1,0 +1,118 @@
+#+TITLE: Module 1: RAG Basics (Simplified)
+#+AUTHOR: Jason Walsh
+#+EMAIL: j@wal.sh
+#+PROPERTY: header-args:python :results output :session rag-basics
+
+* Introduction to RAG
+
+Retrieval Augmented Generation (RAG) combines LLMs with external knowledge bases for accurate, verifiable responses.
+
+** Architecture Overview
+
+#+BEGIN_SRC mermaid :file rag-architecture.png
+graph TD
+    A[User Query] --> B[Embedding]
+    B --> C[Vector Search]
+    C --> D[Retrieve Documents]
+    D --> E[Context + Query]
+    E --> F[LLM Generation]
+    F --> G[Response]
+    
+    H[(Vector Store)] --> C
+    I[(Document Store)] --> D
+#+END_SRC
+
+* Quick Demo: RAG Pipeline
+
+** 1. Start LocalStack
+#+BEGIN_SRC shell
+make localstack-up
+#+END_SRC
+
+** 2. Verify AWS Services
+#+BEGIN_SRC shell
+aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 ls
+aws --endpoint-url=$LOCALSTACK_ENDPOINT dynamodb list-tables
+#+END_SRC
+
+** 3. Upload Sample Documents
+#+BEGIN_SRC shell
+# Download sample data if needed
+make download-data
+
+# Create S3 bucket for documents
+aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 mb s3://workshop-rag-documents
+
+# Upload the PDF
+aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 cp \
+    data/rogets_thesaurus.pdf \
+    s3://workshop-rag-documents/
+#+END_SRC
+
+** 4. Run the RAG Pipeline
+#+BEGIN_SRC shell
+# Process documents and create embeddings
+uv run python -m src.rag.pipeline process \
+    --source s3://workshop-rag-documents/rogets_thesaurus.pdf \
+    --chunks 100
+
+# Query the system
+uv run python -m src.rag.pipeline query \
+    --question "What are synonyms for 'happy'?"
+#+END_SRC
+
+* Understanding Embeddings
+
+** Test Embedding Generation
+#+BEGIN_SRC python
+# Quick test of embedding dimensions
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer('all-MiniLM-L6-v2')
+embedding = model.encode("Hello, world!")
+print(f"Embedding shape: {embedding.shape}")
+print(f"First 5 values: {embedding[:5]}")
+#+END_SRC
+
+** Using Bedrock for Embeddings
+#+BEGIN_SRC shell
+# Create embeddings with Bedrock Titan
+aws bedrock-runtime invoke-model \
+    --model-id amazon.titan-embed-text-v1 \
+    --body '{"inputText": "What is machine learning?"}' \
+    --cli-binary-format raw-in-base64-out \
+    output.json
+
+# Extract embedding (using jq)
+jq '.embedding[:5]' output.json
+#+END_SRC
+
+* Cost Estimation
+
+** Quick Cost Check
+#+BEGIN_SRC shell
+# Estimate costs for this session
+uv run python -m src.utils.cost_calculator \
+    --embeddings 1000 \
+    --queries 100 \
+    --storage-gb 0.1
+#+END_SRC
+
+* Exercises
+
+1. **Modify Chunk Size**: Edit `.env` to set `CHUNK_SIZE=256` and rerun the pipeline
+2. **Try Different Models**: Change `EMBEDDING_MODEL` to test different embedding models
+3. **Query Patterns**: Test different query types:
+   #+BEGIN_SRC shell
+   # Semantic search
+   uv run python -m src.rag.pipeline query --question "words meaning small"
+   
+   # Specific lookup
+   uv run python -m src.rag.pipeline query --question "antonyms of large"
+   #+END_SRC
+
+* Next Steps
+
+- [[file:02_advanced_rag.org][Module 2: Advanced RAG]] - Reranking and hybrid search
+- Review the implementation in `src/rag/pipeline.py`
+- Check LocalStack logs: `make localstack-logs`

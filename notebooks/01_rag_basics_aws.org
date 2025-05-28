@@ -1,0 +1,238 @@
+#+TITLE: Module 1: RAG Basics with AWS
+#+AUTHOR: Jason Walsh
+#+EMAIL: j@wal.sh
+#+PROPERTY: header-args:shell :results output :dir ..
+
+* Introduction
+
+This module demonstrates RAG concepts using AWS services and the CLI.
+
+* Environment Setup
+
+** Check Prerequisites
+#+BEGIN_SRC shell
+# Verify tools
+echo "Python: $(python --version)"
+echo "AWS CLI: $(aws --version | head -1)"
+echo "LocalStack endpoint: ${LOCALSTACK_ENDPOINT:-not set}"
+#+END_SRC
+
+** Start LocalStack
+#+BEGIN_SRC shell
+make localstack-up
+#+END_SRC
+
+* AWS Resources Setup
+
+** Create S3 Buckets
+#+BEGIN_SRC shell
+# Document storage
+aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 mb s3://workshop-rag-documents
+
+# Embeddings storage
+aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 mb s3://workshop-rag-embeddings
+
+# List buckets
+aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 ls
+#+END_SRC
+
+** Create DynamoDB Table
+#+BEGIN_SRC shell
+aws --endpoint-url=$LOCALSTACK_ENDPOINT dynamodb create-table \
+    --table-name workshop-vector-metadata \
+    --attribute-definitions AttributeName=doc_id,AttributeType=S \
+    --key-schema AttributeName=doc_id,KeyType=HASH \
+    --billing-mode PAY_PER_REQUEST \
+    --no-cli-pager
+
+# Verify table
+aws --endpoint-url=$LOCALSTACK_ENDPOINT dynamodb list-tables
+#+END_SRC
+
+* Document Processing
+
+** Upload Sample Document
+#+BEGIN_SRC shell
+# Download sample if needed
+make data/rogets_thesaurus.pdf
+
+# Upload to S3
+aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 cp \
+    data/rogets_thesaurus.pdf \
+    s3://workshop-rag-documents/
+
+# Verify upload
+aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 ls s3://workshop-rag-documents/
+#+END_SRC
+
+** Extract Text from PDF
+#+BEGIN_SRC shell
+# Extract first 5 pages
+uv run python -m src.utils.pdf_extractor data/rogets_thesaurus.pdf 5
+#+END_SRC
+
+* Embeddings Generation
+
+** Using Amazon Titan Embeddings
+#+BEGIN_SRC shell
+# Create embedding request
+cat > /tmp/embed_request.json << 'EOF'
+{
+    "inputText": "What are synonyms for happiness?"
+}
+EOF
+
+# Generate embedding
+aws bedrock-runtime invoke-model \
+    --model-id amazon.titan-embed-text-v1 \
+    --body file:///tmp/embed_request.json \
+    --cli-binary-format raw-in-base64-out \
+    /tmp/embed_response.json 2>/dev/null
+
+# Check embedding dimension
+echo "Embedding dimension: $(jq '.embedding | length' /tmp/embed_response.json)"
+#+END_SRC
+
+** Compare Multiple Embeddings
+#+BEGIN_SRC shell
+# Create multiple embedding requests
+for word in "happy" "sad" "joyful" "miserable"; do
+    echo "{\"inputText\": \"$word\"}" > /tmp/embed_${word}.json
+    
+    aws bedrock-runtime invoke-model \
+        --model-id amazon.titan-embed-text-v1 \
+        --body file:///tmp/embed_${word}.json \
+        --cli-binary-format raw-in-base64-out \
+        /tmp/embed_${word}_response.json 2>/dev/null
+done
+
+# Show first few values of each
+for word in "happy" "sad" "joyful" "miserable"; do
+    echo -n "$word: "
+    jq -c '.embedding[:3]' /tmp/embed_${word}_response.json
+done
+#+END_SRC
+
+* Building the RAG Pipeline
+
+** Process Documents
+#+BEGIN_SRC shell
+# Process PDF and create vector store
+uv run python -m src.rag.pipeline process \
+    --source data/rogets_thesaurus.pdf \
+    --chunks 100
+#+END_SRC
+
+** Query the System
+#+BEGIN_SRC shell
+# Ask questions
+uv run python -m src.rag.pipeline query \
+    --question "What are synonyms for happy?"
+
+# Try another query
+uv run python -m src.rag.pipeline query \
+    --question "What words mean the opposite of large?"
+#+END_SRC
+
+* Cost Analysis
+
+** Estimate Costs
+#+BEGIN_SRC shell
+# Estimate costs for this workshop
+uv run python -m src.utils.cost_calculator \
+    --embeddings 1000 \
+    --queries 100 \
+    --storage-gb 0.1
+#+END_SRC
+
+** Check Bedrock Pricing
+#+BEGIN_SRC shell
+# List available models and their IDs
+aws bedrock list-foundation-models \
+    --query 'modelSummaries[?contains(modelId, `embed`) || contains(modelId, `claude`)].{id:modelId,provider:providerName}' \
+    --output table
+#+END_SRC
+
+* Vector Search Visualization
+
+** Simple Similarity Demo
+#+BEGIN_SRC python :results output
+import numpy as np
+
+# Simulate embeddings for visualization
+words = ["happy", "joyful", "sad", "miserable", "dog", "cat"]
+# In reality, these would come from Bedrock
+
+# Mock 2D embeddings for visualization
+embeddings = {
+    "happy": np.array([0.8, 0.9]),
+    "joyful": np.array([0.85, 0.88]),
+    "sad": np.array([-0.8, -0.9]),
+    "miserable": np.array([-0.85, -0.88]),
+    "dog": np.array([0.1, -0.5]),
+    "cat": np.array([0.15, -0.48])
+}
+
+# Calculate similarities to "happy"
+query = embeddings["happy"]
+for word, vec in embeddings.items():
+    similarity = np.dot(query, vec) / (np.linalg.norm(query) * np.linalg.norm(vec))
+    print(f"Similarity between 'happy' and '{word}': {similarity:.3f}")
+#+END_SRC
+
+* Monitoring and Debugging
+
+** Check S3 Storage
+#+BEGIN_SRC shell
+# List all objects
+aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 ls s3://workshop-rag-documents/ --recursive
+
+# Get object size
+aws --endpoint-url=$LOCALSTACK_ENDPOINT s3api head-object \
+    --bucket workshop-rag-documents \
+    --key rogets_thesaurus.pdf \
+    --query 'ContentLength'
+#+END_SRC
+
+** Query DynamoDB Metadata
+#+BEGIN_SRC shell
+# Scan table (use carefully in production!)
+aws --endpoint-url=$LOCALSTACK_ENDPOINT dynamodb scan \
+    --table-name workshop-vector-metadata \
+    --limit 5 \
+    --query 'Items[*].doc_id.S'
+#+END_SRC
+
+** LocalStack Logs
+#+BEGIN_SRC shell
+# Check service logs
+make localstack-logs | grep -i "bedrock\|s3\|dynamodb" | tail -20
+#+END_SRC
+
+* Exercises
+
+1. **Modify Chunk Size**: Update CHUNK_SIZE in .env and reprocess
+2. **Test Different Models**: Try different embedding models
+3. **Query Patterns**: Experiment with different question types
+4. **Cost Optimization**: Compare costs of different models
+
+* Clean Up
+
+#+BEGIN_SRC shell
+# Remove S3 objects
+aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 rm s3://workshop-rag-documents/ --recursive
+aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 rm s3://workshop-rag-embeddings/ --recursive
+
+# Delete DynamoDB table
+aws --endpoint-url=$LOCALSTACK_ENDPOINT dynamodb delete-table \
+    --table-name workshop-vector-metadata
+
+# Stop LocalStack
+make localstack-down
+#+END_SRC
+
+* Next Steps
+
+- [[file:02_advanced_rag.org][Module 2: Advanced RAG]] - Reranking and hybrid search
+- Explore the implementation in =src/rag/=
+- Try with real AWS credentials (remove =--endpoint-url=)
