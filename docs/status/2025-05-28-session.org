@@ -1,0 +1,109 @@
+#+TITLE: AWS GenAI RAG Workshop - Development Session Status
+#+AUTHOR: aygp-dr
+#+DATE: 2025-05-28
+
+* Session Summary
+
+Today's session focused on architectural improvements, multi-OS compatibility, and adding philosophical texts to create an unconventional RAG demonstration.
+
+* Major Accomplishments
+
+** 1. Code Architecture Refactoring
+- Removed all =:tangle= directives from notebooks that created files in =src/=
+- Notebooks now import from existing =src/= modules instead of duplicating code
+- This prevents code duplication and maintains single source of truth
+
+** 2. Multi-OS Testing Framework
+Created progressive capability levels for different environments:
+
+#+begin_src text
+Level 1: Python-only (FreeBSD, Linux, macOS)
+Level 2: + PostgreSQL (Linux, macOS)  
+Level 3: + LocalStack (Linux, macOS)
+Level 4: + Real AWS (macOS primary)
+#+end_src
+
+- Created =test_compatibility.py= for Level 1 verification
+- Added make targets: =test-level1= through =test-level4=
+- Fixed import issues in compatibility tests
+
+** 3. AWS Configuration Management
+- Fixed AWS credentials parsing error on macOS
+- Created =scripts/check-env.py= for environment detection
+- Added make targets for switching between LocalStack and AWS
+
+** 4. Philosophical RAG Demo ("Trolling Collection")
+Added texts "nobody wants in their RAG":
+- Boethius: =Consolation of Philosophy= (medieval)
+- Kant: =Critique of Pure Reason= (enlightenment)
+- Wittgenstein: =Philosophical Grammar= (modern)
+- Roget's Thesaurus (for semantic bridging)
+
+Created =src/demos/philosophical_rag.py= to demonstrate cross-document concept connections.
+
+* Files Modified/Created
+
+** New Files
+- =WIP.org= - Multi-OS testing documentation
+- =test_compatibility.py= - Python-only compatibility test
+- =scripts/check-env.py= - AWS environment detection
+- =scripts/fix-aws-config.py= - AWS config repair utility
+- =src/demos/philosophical_rag.py= - Philosophical RAG demo
+- =src/demos/__init__.py= - Package initialization
+
+** Modified Files
+- All notebooks (removed =:tangle= directives)
+- =Makefile= (added OS testing targets, philosophical downloads)
+- =src/utils/cost_calculator.py= (fixed class naming)
+- =test_compatibility.py= (fixed imports)
+
+* Testing Results
+
+** Linux (Raspberry Pi ARM64) - Current Session
+#+begin_src text
+✅ Level 1 (Python-only): PASSED
+- Compatibility test: 10/10 tests pass
+- Simple RAG pipeline: Working
+- Embeddings: Dimension 384
+- Cost calculation: Working
+- LocalStack: Connected (3 buckets)
+#+end_src
+
+** Pending Tests
+- [ ] FreeBSD 14.2 - Level 1 only
+- [ ] macOS M1 - Levels 1-4
+- [ ] Raspberry Pi via Tailscale - Levels 1-2
+
+* Key Decisions
+
+1. **No Code Tangling**: Notebooks should import, not generate source files
+2. **Progressive Compatibility**: Not all environments need full AWS support
+3. **Make-Based Workflow**: Reference make commands instead of duplicating scripts
+4. **Philosophical Texts**: Demonstrate RAG with challenging, dense academic texts
+
+* Next Steps
+
+1. Test Level 1 on FreeBSD environment
+2. Complete AWS profile setup on macOS
+3. Run full workshop progression (Levels 1-4) on macOS
+4. Document any FreeBSD-specific limitations
+
+* Lessons Learned
+
+- Using =uv= for dependency management provides better cross-platform compatibility
+- Progressive capability levels allow workshop to run in limited environments
+- Philosophical texts create interesting RAG challenges due to:
+  - Dense, complex language
+  - Abstract concepts
+  - Cross-era terminology differences
+  - Need for semantic bridging via thesaurus
+
+* Environment Status
+
+#+begin_src bash
+Platform: Linux (aarch64)
+Python: 3.11.2
+Docker: Running
+LocalStack: Healthy
+AWS Environment: LocalStack (http://localhost:4566)
+#+end_src

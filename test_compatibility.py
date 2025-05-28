@@ -37,7 +37,7 @@ def test_imports():
         tests.append(("✗", f"Vector Store: {e}"))
     
     try:
-        from src.utils.cost_calculator import RAGCostEstimator
+        from src.utils.cost_calculator import AWSCostCalculator
         tests.append(("✓", "Cost Calculator"))
     except Exception as e:
         tests.append(("✗", f"Cost Calculator: {e}"))
@@ -81,10 +81,14 @@ def test_basic_functionality():
     
     # Test cost calculation
     try:
-        from src.utils.cost_calculator import RAGCostEstimator
-        estimator = RAGCostEstimator()
-        cost = estimator.estimate_embedding_cost(100, 500)
-        tests.append(("✓", f"Cost estimation: ${cost['cost_usd']:.6f}"))
+        from src.utils.cost_calculator import AWSCostCalculator
+        calculator = AWSCostCalculator()
+        # Test with a simple embedding cost calculation
+        cost = calculator.calculate_embedding_cost(
+            "amazon.titan-embed-text-v2:0",
+            ["test text"] * 10
+        )
+        tests.append(("✓", f"Cost estimation: ${cost['total_cost']:.6f}"))
     except Exception as e:
         tests.append(("✗", f"Cost estimation: {e}"))
     
