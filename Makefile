@@ -152,13 +152,35 @@ data/rogets_thesaurus.pdf: | data ## Download Roget's Thesaurus PDF for RAG exam
 	@curl -L "https://ia903407.us.archive.org/30/items/thesaurusofengli00roge_1/thesaurusofengli00roge_1.pdf" -o $@
 	@echo "✅ Downloaded: $@"
 
+data/consolation_of_philosophy.txt: | data ## Download Boethius' Consolation of Philosophy
+	@echo "📜 Downloading Consolation of Philosophy..."
+	@curl -L "https://ia600205.us.archive.org/8/items/theconsolationof14328gut/14328-8.txt" -o $@
+	@echo "✅ Downloaded: $@"
+
+data/critique_of_pure_reason.txt: | data ## Download Kant's Critique of Pure Reason
+	@echo "🧠 Downloading Critique of Pure Reason..."
+	@curl -L "https://ia600206.us.archive.org/27/items/thecritiqueofpur04280gut/cprrn10.txt" -o $@
+	@echo "✅ Downloaded: $@"
+
+data/wittgenstein_philosophical_grammar.pdf: | data ## Download Wittgenstein's Philosophical Grammar
+	@echo "🔍 Downloading Wittgenstein's Philosophical Grammar..."
+	@curl -L "https://dn721807.ca.archive.org/0/items/ludwig-wittgenstein-philosophical-grammar/Ludwig%20Wittgenstein%20-%20Philosophical%20Grammar.pdf" -o $@
+	@echo "✅ Downloaded: $@"
+
+download-philosophy: data/consolation_of_philosophy.txt data/critique_of_pure_reason.txt data/wittgenstein_philosophical_grammar.pdf ## Download philosophical texts
+
 download-data: data/rogets_thesaurus.pdf ## Download all sample data
+
+download-all: download-data download-philosophy ## Download all texts (thesaurus + philosophy)
 
 run-rag-pipeline: ## Run the RAG pipeline demo
 	$(UV) run python -m src.rag.pipeline
 
 run-sql-agent: ## Run the SQL agent demo
 	$(UV) run python -m src.agents.sql_agent
+
+run-philosophical-rag: download-philosophy ## Run the philosophical RAG demo
+	$(UV) run python -m src.demos.philosophical_rag
 
 calculate-costs: ## Calculate workshop costs
 	$(UV) run python -m src.utils.cost_calculator
