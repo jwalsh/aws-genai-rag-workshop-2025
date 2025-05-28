@@ -1,15 +1,16 @@
 """Main RAG pipeline implementation."""
 
+import json
 import logging
 from dataclasses import dataclass
 from typing import Any
 
+import click
+
 from ..utils.aws_client import get_bedrock_runtime_client
-from .chunking import SimpleChunker, SentenceChunker
+from .chunking import SimpleChunker
 from .embeddings import EmbeddingGenerator
 from .vector_store import FAISSVectorStore
-import json
-import click
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ class RAGPipeline:
         """Generate response using Bedrock."""
         if self.bedrock is None:
             self.bedrock = get_bedrock_runtime_client()
-        
+
         prompt = f"""Context information:
 {context}
 
@@ -119,17 +120,17 @@ Based on the context above, please provide a comprehensive answer to the questio
                 "max_tokens_to_sample": 500,
                 "temperature": 0.7
             })
-            
+
             response = self.bedrock.invoke_model(
                 modelId="anthropic.claude-instant-v1",
                 body=body
             )
-            
+
             result = json.loads(response['body'].read())
             return result.get('completion', 'Unable to generate response')
         except Exception as e:
             logger.error(f"Error generating response: {e}")
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
 
 
 @click.group()
@@ -145,7 +146,7 @@ def process(source: str, chunks: int):
     """Process documents and create embeddings."""
     config = RAGConfig()
     pipeline = RAGPipeline(config)
-    
+
     # Load document
     if source.endswith('.pdf'):
         from ..utils.pdf_extractor import PDFExtractor
@@ -154,9 +155,9 @@ def process(source: str, chunks: int):
         max_pages = chunks // 10  # Roughly 10 chunks per page
         text = extractor.extract_text(source, max_pages=max_pages)
     else:
-        with open(source, 'r') as f:
+        with open(source) as f:
             text = f.read()
-    
+
     pipeline.process_documents([text])
     pipeline.vector_store.save("data/vector_store")
     click.echo(f"Processed {source} into {pipeline.vector_store.size()} vectors")
@@ -168,10 +169,10 @@ def query(question: str):
     """Query the RAG system."""
     config = RAGConfig()
     pipeline = RAGPipeline(config)
-    
+
     # Load vector store
     pipeline.vector_store = FAISSVectorStore.load("data/vector_store")
-    
+
     result = pipeline.query(question)
     click.echo(f"\nQuestion: {result['question']}")
     click.echo(f"\nAnswer: {result['answer']}")
