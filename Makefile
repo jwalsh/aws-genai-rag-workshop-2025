@@ -59,6 +59,27 @@ test: ## Run tests with pytest
 test-cov: ## Run tests with coverage
 	$(UV) run pytest tests/ --cov=src --cov-report=html --cov-report=term
 
+##@ Environment Management
+
+check-env: ## Check which AWS environment is active
+	@$(UV) run python scripts/check-env.py
+
+aws-test: check-env ## Quick test of AWS connectivity (real or LocalStack)
+	@echo ""
+
+use-aws: ## Configure environment for real AWS (prints commands to run)
+	@echo "Run these commands to use real AWS:"
+	@echo "  export AWS_PROFILE=dev"
+	@echo "  unset AWS_ENDPOINT_URL"
+	@echo "Or for this session only:"
+	@echo "  AWS_PROFILE=dev AWS_ENDPOINT_URL= make <target>"
+
+use-localstack: ## Configure environment for LocalStack (prints commands to run)
+	@echo "Run these commands to use LocalStack:"
+	@echo "  unset AWS_PROFILE"
+	@echo "  export AWS_ENDPOINT_URL=http://localhost:4566"
+	@echo "Or use the default .env settings"
+
 ##@ OS Compatibility Testing
 
 test-compatibility: ## Test Python-only compatibility (Level 1)
@@ -84,9 +105,9 @@ test-level3: ## Run Level 3 tests (with LocalStack)
 
 test-level4: ## Run Level 4 tests (with real AWS)
 	@echo "Testing Level 4 (with real AWS)..."
-	@echo "Ensure AWS_PROFILE=dev is set"
-	aws s3 ls
-	$(UV) run pytest tests/ -v -k "aws" --aws-integration
+	@echo "Using AWS_PROFILE=dev and unsetting LocalStack endpoint"
+	@AWS_PROFILE=dev AWS_ENDPOINT_URL= aws s3 ls
+	@AWS_PROFILE=dev AWS_ENDPOINT_URL= $(UV) run pytest tests/ -v -k "aws" --aws-integration
 
 lint: py-lint org-lint ## Run all linting (Python and Org-mode)
 
