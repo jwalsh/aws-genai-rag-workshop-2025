@@ -439,6 +439,33 @@ Be prepared to answer:
 - Competitive landscape
 #+END_NOTES
 
+* Bonus: Stress Testing with Philosophy
+
+** If It Can Handle Kant, It Can Handle Your Docs
+
+#+ATTR_BEAMER: :overlay +-
+- Tested RAG on *Kant's Critique of Pure Reason* (1781)
+- *Wittgenstein's Philosophical Grammar* (dense academic PDFs)
+- *Roget's Thesaurus* (1852) - complex categorizations
+- Medieval Latin mixed with Middle English (Boethius, 524 AD)
+
+#+BEGIN_CENTER
+*"If we can handle Kant's Critique of Pure Reason,*
+*we can definitely handle your product documentation!"*
+#+END_CENTER
+
+** What This Demonstrates
+
+- RAG handles *dense, complex language* across centuries
+- Finds connections between *disparate concepts* (e.g., "perspicuity" → clarity)
+- Works with *poorly formatted PDFs* and inconsistent text
+- Maintains accuracy with *domain-specific terminology*
+
+#+BEGIN_NOTES
+Quick amusing demo if time permits. Shows robustness of the system.
+Product managers often worry their docs are "too messy" - this proves otherwise.
+#+END_NOTES
+
 * Appendix                                                         :noexport:
 
 ** Detailed Cost Breakdown
