@@ -4,6 +4,11 @@
 
 UV := uv
 
+# Default target
+help: ## Show this help message
+	@echo "AWS GenAI RAG Workshop - Available targets:"
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
 # File dependencies
 README.md: README.org
 	@echo "Generating README.md from README.org..."
@@ -12,10 +17,6 @@ README.md: README.org
 .venv: README.md
 	@echo "Creating virtual environment with uv..."
 	$(UV) venv
-
-help: ## Show this help message
-	@echo "AWS GenAI RAG Workshop - Available targets:"
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Setup
 
