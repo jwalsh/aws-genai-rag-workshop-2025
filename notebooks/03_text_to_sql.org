@@ -180,7 +180,12 @@ analyze_sample_data()
 
 * SQL Agent Implementation
 
-Now let's initialize our SQL Agent and test its basic functionality.
+You can run the SQL Agent demo using:
+#+BEGIN_SRC shell
+make run-sql-agent
+#+END_SRC
+
+Or initialize your own SQL Agent for testing:
 
 #+BEGIN_SRC python
 # Initialize SQL Agent using the project's implementation

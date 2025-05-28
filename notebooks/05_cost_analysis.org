@@ -21,6 +21,13 @@ By the end of this notebook, you will:
 
 * Setup
 
+You can run the cost calculator demo using:
+#+BEGIN_SRC shell
+make calculate-costs
+#+END_SRC
+
+Or explore cost calculations interactively:
+
 #+begin_src python
 import sys
 sys.path.append('..')  # Add parent directory to path
