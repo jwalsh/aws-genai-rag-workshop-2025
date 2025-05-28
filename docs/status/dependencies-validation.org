@@ -1,0 +1,80 @@
+#+TITLE: DEPENDENCIES.org Code Block Validation
+#+AUTHOR: aygp-dr
+#+DATE: 2025-05-28
+#+PROPERTY: header-args :results output
+
+* Summary
+
+All Python code blocks from DEPENDENCIES.org have been tested and validated on Linux (aarch64).
+
+** Results
+- Total blocks tested: 17
+- Passed: 17
+- Failed: 0
+- Success rate: 100%
+
+* Test Results by Category
+
+** AWS Integration ✓
+- =boto3=: Successfully created Bedrock client with LocalStack endpoint
+- =awscli-local=: Successfully executed awslocal commands
+
+** LangChain Ecosystem ✓
+- =langchain=: Document splitting working correctly
+- =langchain-aws=: BedrockEmbeddings imported successfully
+- =langchain-community=: All community integrations available
+
+** Machine Learning & Embeddings ✓
+- =sentence-transformers=: Generated 384-dimension embeddings
+- =faiss-cpu=: Vector search with 1000 vectors successful
+- =spacy=: Imported successfully (model download separate)
+
+** Data Processing ✓
+- =pandas=: DataFrame operations working
+- =numpy=: Vector math and cosine similarity calculations correct
+
+** Database & Storage ✓
+- =sqlalchemy=: ORM and in-memory SQLite working
+- =PyPDF2=: PDF capabilities available
+
+** Search & Ranking ✓
+- =rank-bm25=: BM25 search working with correct ranking
+- =rouge=: Text similarity metrics calculated
+
+** Configuration & Validation ✓
+- =pydantic=: Model validation working (note: using V1 validators)
+- =python-dotenv=: Environment variable loading successful
+
+** Visualization ✓
+- =plotly=: Figure creation successful
+
+* Deprecation Warnings
+
+Two minor warnings were noted:
+1. SQLAlchemy: =declarative_base()= should use =sqlalchemy.orm.declarative_base()=
+2. Pydantic: V1 style =@validator= should migrate to V2 =@field_validator=
+
+These don't affect functionality but should be updated for future compatibility.
+
+* Environment Details
+
+#+begin_src text
+Platform: Linux (aarch64)
+Python: 3.11.2
+Virtual Environment: uv-managed .venv
+LocalStack: Running and accessible
+#+end_src
+
+* Emacs Execution
+
+To execute these blocks in Emacs:
+
+1. Open DEPENDENCIES.org in Emacs
+2. For individual blocks: =C-c C-c= on the block
+3. For all blocks: =M-x org-babel-execute-buffer=
+
+Note: The =:session deps= header arg creates a persistent Python session for state sharing between blocks.
+
+* Conclusion
+
+The DEPENDENCIES.org file serves as both documentation and executable validation. All dependencies are properly installed and functional on this Linux ARM64 environment, confirming Level 1 compatibility.

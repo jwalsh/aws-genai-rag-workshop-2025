@@ -10,11 +10,8 @@
       "Bash(find:*)",
       "Bash(grep:*)",
       "Bash(sed:*)",
-      "Bash(git pull:*)",
-      "Bash(uv pip install:*)",
-      "mcp__filesystem__write_file"
+      "Bash(ls:*)"
     ],
     "deny": []
-  },
-  "enableAllProjectMcpServers": false
+  }
 }
