@@ -173,6 +173,9 @@ download-data: data/rogets_thesaurus.pdf ## Download all sample data
 
 download-all: download-data download-philosophy ## Download all texts (thesaurus + philosophy)
 
+run-hello-world: ## Run the Hello World example
+	$(UV) run python -m src.examples.hello_world
+
 run-rag-pipeline: ## Run the RAG pipeline demo
 	$(UV) run python -m src.rag.pipeline
 

@@ -134,6 +134,13 @@ Our workshop materials are in .org format (plain text files) containing:
 
 Each notebook contains executable Python code blocks. You can run them in several ways:
 
+**** Option 0: Basic Python Verification
+Before diving into more complex examples, you can run a simple "Hello, World!" script to quickly verify your Python environment and project setup:
+#+BEGIN_SRC shell
+make run-hello-world
+#+END_SRC
+This command executes a basic script located in =src/examples/hello_world.py=. If this runs successfully, your Python setup is likely correct for Level 1.
+
 **** Option 1: Direct Python Execution
 #+BEGIN_SRC shell
 # Extract code from org files
