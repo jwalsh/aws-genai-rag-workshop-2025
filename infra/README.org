@@ -1,0 +1,138 @@
+#+TITLE: AWS GenAI RAG Workshop Infrastructure
+#+AUTHOR: aygp-dr
+#+DATE: 2025-05-29
+#+PROPERTY: header-args :mkdirp yes
+
+* Overview
+
+This infrastructure setup provides a multi-region deployment for the AWS GenAI RAG Workshop with:
+- Primary region (us-east-1) for AWS Bedrock services
+- Secondary region (us-west-2) for new Anthropic Claude 4 models
+- Complete RAG infrastructure including OpenSearch, S3, DynamoDB, and SQS
+
+* Architecture
+
+** Multi-Region Design
+- US-East-1: Bedrock runtime with Claude 3 models
+- US-West-2: New Anthropic Claude 4 models via Bedrock
+- Cross-region replication for S3 and DynamoDB
+- VPC peering for secure inter-region communication
+
+** Core Components
+1. Networking: VPCs, subnets, NAT gateways, VPC endpoints
+2. Bedrock: Model access and configuration for us-east-1
+3. Anthropic: Enhanced model access for us-west-2
+4. RAG Infrastructure: OpenSearch, S3, DynamoDB, SQS
+
+* Deployment
+
+** Prerequisites
+#+begin_src bash
+# Install Terraform
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+
+# Configure AWS credentials
+aws configure
+#+end_src
+
+** Deploy Infrastructure
+#+begin_src bash
+# Deploy to dev environment
+./scripts/deploy.sh dev plan
+./scripts/deploy.sh dev apply
+
+# Deploy to staging
+./scripts/deploy.sh staging plan
+./scripts/deploy.sh staging apply
+
+# Deploy to production
+./scripts/deploy.sh prod plan
+./scripts/deploy.sh prod apply
+#+end_src
+
+* Environment Configuration
+
+** Development
+- Minimal resources (2 AZs)
+- Basic model selection
+- No cross-region replication
+
+** Staging
+- Full 3 AZ deployment
+- Complete model selection
+- Cross-region replication enabled
+
+** Production
+- Full 3 AZ deployment
+- All available models
+- Cross-region replication
+- Enhanced monitoring
+
+* Terraform Modules
+
+** Networking Module
+Creates VPC infrastructure with:
+- Public and private subnets
+- NAT gateways for outbound connectivity
+- VPC endpoints for AWS services
+- Security groups
+
+** Bedrock Module (us-east-1)
+Configures:
+- IAM roles and policies
+- Model access parameters
+- CloudWatch logging
+- S3 bucket for data
+
+** Anthropic Module (us-west-2)
+Provides:
+- Enhanced model access
+- Lambda proxy for API compatibility
+- IAM roles and policies
+- S3 bucket for data
+
+** RAG Module
+Implements:
+- OpenSearch domain for vector search
+- S3 buckets with cross-region replication
+- DynamoDB tables for metadata
+- SQS queues for processing
+
+* Cost Optimization
+
+** Dev Environment
+- t3.small instances
+- Minimal redundancy
+- On-demand pricing
+
+** Staging/Production
+- Reserved instances recommended
+- Auto-scaling enabled
+- Cost allocation tags
+
+* Security Best Practices
+
+1. All data encrypted at rest
+2. TLS in transit
+3. VPC endpoints for AWS services
+4. IAM roles with least privilege
+5. Security groups with minimal access
+6. CloudWatch logging enabled
+
+* Monitoring
+
+- CloudWatch dashboards per environment
+- Log aggregation to CloudWatch Logs
+- Metrics for all services
+- Alarms for critical thresholds
+
+* Cleanup
+
+#+begin_src bash
+# Destroy infrastructure
+./scripts/deploy.sh dev destroy
+./scripts/deploy.sh staging destroy
+./scripts/deploy.sh prod destroy
+#+end_src

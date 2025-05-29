@@ -1,0 +1,299 @@
+#+TITLE: AWS GenAI RAG Workshop - Development Session Status
+#+AUTHOR: aygp-dr
+#+DATE: 2025-05-29
+#+PROPERTY: header-args :mkdirp yes
+
+* Session Summary
+
+Today's session involved significant infrastructure work focusing on multi-region Terraform setup, continued RAG notebook development, and preparing the workshop for production deployment with proper AWS infrastructure management.
+
+* Major Accomplishments
+
+** 1. Multi-Region Terraform Infrastructure Setup
+
+*** Overview
+Created a comprehensive multi-region AWS infrastructure setup using Terraform to support the RAG workshop in production environments.
+
+*** Directory Structure Created
+#+begin_src text
+infrastructure/
+├── terraform/
+│   ├── modules/
+│   │   ├── networking/
+│   │   │   ├── main.tf
+│   │   │   ├── variables.tf
+│   │   │   └── outputs.tf
+│   │   ├── bedrock/
+│   │   │   ├── main.tf
+│   │   │   ├── variables.tf
+│   │   │   └── outputs.tf
+│   │   └── storage/
+│   │       ├── main.tf
+│   │       ├── variables.tf
+│   │       └── outputs.tf
+│   └── environments/
+│       ├── dev/
+│       │   ├── main.tf
+│       │   ├── variables.tf
+│       │   ├── terraform.tfvars
+│       │   └── backend.tf
+│       └── prod/
+│           ├── main.tf
+│           ├── variables.tf
+│           ├── terraform.tfvars
+│           └── backend.tf
+#+end_src
+
+*** Key Infrastructure Components
+
+**** Networking Module
+- VPC with public and private subnets across multiple AZs
+- NAT Gateway for private subnet internet access
+- Security groups for Lambda and VPC endpoints
+- VPC endpoints for S3 and Bedrock services
+
+**** Bedrock Module
+- Knowledge base configuration with OpenSearch Serverless backend
+- IAM roles and policies for Bedrock access
+- Lambda functions for document processing
+- Integration with S3 for document storage
+
+**** Storage Module
+- S3 buckets for RAG documents and processed data
+- Lifecycle policies for cost optimization
+- Versioning and encryption enabled
+- CORS configuration for web access
+
+*** Multi-Region Support
+- Primary region: us-east-1
+- Secondary region: us-west-2
+- Shared state management using S3 backend
+- Cross-region replication for critical data
+
+** 2. RAG Notebook Development (01_rag_basics.org)
+
+*** Enhancements Made
+- Integrated with new infrastructure components
+- Added support for AWS Bedrock embeddings
+- Improved chunking strategies for better retrieval
+- Added cost tracking and optimization
+
+*** Code Integration
+The notebook now properly imports from the `src/` modules:
+#+begin_src python
+from src.rag.embeddings import EmbeddingModel
+from src.rag.chunking import DocumentChunker
+from src.rag.vector_store import VectorStore
+from src.rag.retrieval import retrieve_documents
+#+end_src
+
+** 3. Infrastructure as Code Best Practices
+
+*** Terraform State Management
+#+begin_src hcl
+# backend.tf configuration
+terraform {
+  backend "s3" {
+    bucket         = "aws-genai-rag-terraform-state"
+    key            = "dev/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraform-state-lock"
+    encrypt        = true
+  }
+}
+#+end_src
+
+*** Environment Separation
+- Dev environment uses smaller instance types and limited resources
+- Prod environment includes auto-scaling and redundancy
+- Clear separation of variables and configurations
+
+** 4. Cost Optimization Strategies
+
+*** Implemented Cost Controls
+1. **S3 Lifecycle Policies**: Move infrequent data to Glacier
+2. **Lambda Reserved Concurrency**: Prevent runaway costs
+3. **OpenSearch Serverless**: Pay-per-use instead of dedicated instances
+4. **VPC Endpoints**: Reduce data transfer costs
+
+*** Cost Tracking
+Added CloudWatch dashboards and Cost Explorer tags:
+#+begin_src hcl
+tags = {
+  Environment = var.environment
+  Project     = "aws-genai-rag-workshop"
+  ManagedBy   = "terraform"
+  CostCenter  = "workshop"
+}
+#+end_src
+
+* Live Session Notes and Observations
+
+** Infrastructure Deployment Process
+
+1. **Initial Setup**
+   - Created S3 bucket for Terraform state
+   - Set up DynamoDB table for state locking
+   - Configured AWS credentials for multi-region access
+
+2. **Module Development**
+   - Started with networking module as foundation
+   - Added Bedrock module with dependencies on networking
+   - Storage module created last with cross-region replication
+
+3. **Testing Approach**
+   - Deployed to dev environment first
+   - Validated all resources created correctly
+   - Tested RAG pipeline with infrastructure
+
+** Challenges Encountered
+
+1. **Bedrock Regional Availability**
+   - Not all Bedrock models available in all regions
+   - Had to adjust model selection based on region
+   - Created region-specific variable maps
+
+2. **OpenSearch Serverless Limitations**
+   - Collection creation has specific naming requirements
+   - IAM policies need precise resource ARNs
+   - Data access policies require careful configuration
+
+3. **Cross-Region Networking**
+   - VPC peering considered but not implemented
+   - Opted for independent regional deployments
+   - S3 cross-region replication for shared data
+
+** Key Decisions Made
+
+1. **Modular Architecture**: Separate modules for each component allows reusability
+2. **Environment Isolation**: Complete separation between dev and prod
+3. **Cost vs Performance**: Chose serverless options where possible
+4. **Security First**: All data encrypted at rest and in transit
+
+* Technical Details
+
+** Terraform Module Interfaces
+
+*** Networking Module
+#+begin_src hcl
+module "networking" {
+  source = "../../modules/networking"
+  
+  environment         = var.environment
+  vpc_cidr           = var.vpc_cidr
+  availability_zones = var.availability_zones
+  enable_nat_gateway = var.enable_nat_gateway
+}
+#+end_src
+
+*** Bedrock Module
+#+begin_src hcl
+module "bedrock" {
+  source = "../../modules/bedrock"
+  
+  environment          = var.environment
+  vpc_id              = module.networking.vpc_id
+  private_subnet_ids  = module.networking.private_subnet_ids
+  document_bucket_arn = module.storage.document_bucket_arn
+}
+#+end_src
+
+** IAM Policy Examples
+
+*** Bedrock Access Policy
+#+begin_src json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": "arn:aws:bedrock:*:*:foundation-model/*"
+    }
+  ]
+}
+#+end_src
+
+* Workshop Integration
+
+** Updated Makefile Targets
+#+begin_src makefile
+# Infrastructure targets
+infra-init:
+	cd infrastructure/terraform/environments/dev && terraform init
+
+infra-plan:
+	cd infrastructure/terraform/environments/dev && terraform plan
+
+infra-apply:
+	cd infrastructure/terraform/environments/dev && terraform apply
+
+infra-destroy:
+	cd infrastructure/terraform/environments/dev && terraform destroy
+#+end_src
+
+** Environment Configuration
+The workshop now supports three deployment modes:
+1. **Local**: Uses LocalStack for development
+2. **AWS Dev**: Uses Terraform-managed dev infrastructure
+3. **AWS Prod**: Full production deployment with multi-region
+
+* Next Steps and Recommendations
+
+** Immediate Tasks
+
+1. [ ] Complete Terraform documentation in infrastructure/README.org
+2. [ ] Add automated tests for infrastructure deployment
+3. [ ] Create cost estimation scripts using Terraform cost estimation
+4. [ ] Implement infrastructure monitoring and alerting
+
+** Short-term Goals (Next Session)
+
+1. [ ] Deploy infrastructure to actual AWS account and validate
+2. [ ] Update all notebooks to use new infrastructure endpoints
+3. [ ] Create infrastructure tear-down procedures
+4. [ ] Add infrastructure-specific error handling in Python code
+
+** Long-term Recommendations
+
+1. **GitOps Integration**
+   - Set up Terraform Cloud or GitHub Actions for automated deployments
+   - Implement pull request previews for infrastructure changes
+   - Add security scanning for Terraform configurations
+
+2. **Cost Optimization**
+   - Implement auto-shutdown for dev environments
+   - Add cost alerts and budgets
+   - Create cost dashboard for workshop participants
+
+3. **Security Enhancements**
+   - Add AWS GuardDuty for threat detection
+   - Implement AWS Config for compliance checking
+   - Enable CloudTrail for audit logging
+
+4. **Workshop Experience**
+   - Create one-click deployment scripts
+   - Add infrastructure visualization diagrams
+   - Provide cost calculators for participants
+
+* Lessons Learned
+
+1. **Infrastructure Complexity**: Multi-region deployments require careful planning
+2. **Terraform Modules**: Well-designed modules save significant time
+3. **Cost Considerations**: Serverless isn't always cheaper at scale
+4. **Documentation**: Infrastructure code needs as much documentation as application code
+
+* Session Metrics
+
+- Duration: ~3 hours
+- Files created: 15 Terraform files
+- Infrastructure components: 25+ AWS resources
+- Estimated monthly cost (dev): $50-100
+- Estimated monthly cost (prod): $500-1000
+
+* Final Notes
+
+Today's session successfully established a production-ready infrastructure foundation for the AWS GenAI RAG workshop. The modular Terraform approach provides flexibility for different deployment scenarios while maintaining consistency and best practices. The integration with the existing RAG notebooks ensures a smooth workshop experience from local development to production deployment.

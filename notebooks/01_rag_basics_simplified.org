@@ -17,46 +17,70 @@ graph TD
     D --> E[Context + Query]
     E --> F[LLM Generation]
     F --> G[Response]
-    
     H[(Vector Store)] --> C
     I[(Document Store)] --> D
 #+END_SRC
 
-* Quick Demo: RAG Pipeline
+#+RESULTS:
+[[file:rag-architecture.png]]
 
-** 1. Start LocalStack
+* DONE Quick Demo: RAG Pipeline
+
+** DONE Start LocalStack
+
 #+BEGIN_SRC shell
 make localstack-up
 #+END_SRC
 
-** 2. Verify AWS Services
+** DONE [#B] Verify AWS Services
+
 #+BEGIN_SRC shell
-aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 ls
-aws --endpoint-url=$LOCALSTACK_ENDPOINT dynamodb list-tables
+uv run aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 ls
 #+END_SRC
 
-** 3. Upload Sample Documents
+#+RESULTS:
+: 2025-05-27 13:20:48 workshop-embeddings
+: 2025-05-27 13:20:50 workshop-model-artifacts
+: 2025-05-27 13:20:46 workshop-rag-documents
+
+#+begin_src shell
+aws --endpoint-url=$LOCALSTACK_ENDPOINT dynamodb list-tables | jq -r .TableNames[] 
+#+end_src
+
+#+RESULTS:
+
+
+** Upload Sample Documents
+
+*** Download sample data if needed
 #+BEGIN_SRC shell
-# Download sample data if needed
 make download-data
+#+end_src
 
-# Create S3 bucket for documents
+*** Create S3 bucket for documents
+#+begin_src shell
 aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 mb s3://workshop-rag-documents
+#+end_src
+*** Upload the PDF
 
-# Upload the PDF
+#+begin_src shell
 aws --endpoint-url=$LOCALSTACK_ENDPOINT s3 cp \
     data/rogets_thesaurus.pdf \
     s3://workshop-rag-documents/
 #+END_SRC
 
-** 4. Run the RAG Pipeline
+** Run the RAG Pipeline
+
+*** Process documents and create embeddings
 #+BEGIN_SRC shell
-# Process documents and create embeddings
 uv run python -m src.rag.pipeline process \
     --source s3://workshop-rag-documents/rogets_thesaurus.pdf \
     --chunks 100
+#+end_src
 
-# Query the system
+*** Query the system
+
+#+begin_src shell
 uv run python -m src.rag.pipeline query \
     --question "What are synonyms for 'happy'?"
 #+END_SRC
@@ -64,8 +88,10 @@ uv run python -m src.rag.pipeline query \
 * Understanding Embeddings
 
 ** Test Embedding Generation
+
+*** Quick test of embedding dimensions
+
 #+BEGIN_SRC python
-# Quick test of embedding dimensions
 from sentence_transformers import SentenceTransformer
 
 model = SentenceTransformer('all-MiniLM-L6-v2')

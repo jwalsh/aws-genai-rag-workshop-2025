@@ -37,6 +37,13 @@ notebooks/*/
 *.swo
 .DS_Store
 
+# Emacs
+*~
+\#*\#
+.\#*
+*.elc
+.dir-locals.el
+
 # LocalStack
 localstack/volume/
 
@@ -49,7 +56,6 @@ localstack/volume/
 .env.local
 .env~
 *.env~
-*~
 *.log
 
 # Data
