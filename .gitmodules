@@ -1,0 +1,3 @@
+[submodule "sample-advanced-rag-using-bedrock-and-sagemaker"]
+	path = sample-advanced-rag-using-bedrock-and-sagemaker
+	url = https://github.com/jwalsh/sample-advanced-rag-using-bedrock-and-sagemaker.git
