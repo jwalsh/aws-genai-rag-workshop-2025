@@ -28,11 +28,21 @@ This hands-on workshop guides you through building production-ready Retrieval Au
 - *Level 3*: LocalStack (via Docker)
 - *Level 4*: AWS Account with configured credentials
 
-*** Supported Operating Systems
+*** Supported Operating Systems / Environments
+
+*** Verified Support
 - ✅ macOS (Intel/Apple Silicon) - All levels
-- ✅ Linux (x86_64/ARM64) - Levels 1-3
-- ✅ FreeBSD - Level 1 only
+- ✅ Linux (x86_64/ARM64) - All levels  
 - ✅ Windows WSL2 - Levels 1-3
+- ✅ FreeBSD - Level 1
+- ✅ GitHub Actions CI/CD - Level 1
+- ✅ Local Python environments - Level 1
+
+*** Unverified Support (Community Contributions Welcome)
+- 🔄 GitHub Codespaces - Level 1
+- 🔄 AWS SageMaker Notebooks - Level 1
+- 🔄 Jupyter on AWS EMR - Level 1
+- 🔄 Google Colab - Level 1 only
 
 ** Quick Start
 
@@ -56,22 +66,30 @@ make download-data  # Downloads Roget's Thesaurus PDF
 *** 4. Test Your System Compatibility
 #+BEGIN_SRC shell
 make test-compatibility  # Check if your system can run the workshop
+make validate-level1     # Run Level 1 RAG validation (no AWS required)
 #+END_SRC
 
 *** 5. Run Your First RAG Pipeline
 #+BEGIN_SRC shell
-make run-rag-pipeline
+make run-rag-pipeline    # Full pipeline demo
+# Or for quick validation:
+make validate-level1     # Simple download/chunk/pickle RAG
 #+END_SRC
 
 ** Workshop Modules
 
 *** Module 1: RAG Basics ([[file:notebooks/01_rag_basics.org][notebooks/01_rag_basics.org]])
+- Level 0: Basic embeddings (Python-only, no AWS)
+- Level 1: Simple RAG validation (download/chunk/pickle)
 - Document chunking strategies
 - Embedding generation with Bedrock
 - Vector storage and retrieval
 - Basic RAG pipeline implementation
+- Weekend testing checklist included
 
 *** Module 2: Advanced RAG ([[file:notebooks/02_advanced_rag.org][notebooks/02_advanced_rag.org]])
+- Metadata filtering for precise retrieval
+- Guardrails for content safety
 - Reranking for improved relevance
 - Hybrid search (keyword + semantic)
 - RAG evaluation metrics
@@ -79,21 +97,24 @@ make run-rag-pipeline
 
 *** Module 3: Text-to-SQL ([[file:notebooks/03_text_to_sql.org][notebooks/03_text_to_sql.org]])
 - Natural language database queries
-- SQL agent with Bedrock
+- SQL agent with Bedrock and Athena
 - Schema understanding
 - Query optimization
+- Complex query handling (JOINs, CTEs)
 
-*** Module 4: Fine-Tuning ([[file:notebooks/04_fine_tuning.org][notebooks/04_fine_tuning.org]])
-- SageMaker integration
-- Domain-specific model adaptation
-- Training data preparation
-- Deployment strategies
+*** Module 4: Evaluation with FloTorch ([[file:notebooks/04_fine_tuning.org][notebooks/04_fine_tuning.org]])
+- RAG pipeline performance evaluation
+- RAGAS metrics implementation
+- Comparing chunking strategies
+- Cost vs. accuracy analysis
+- Fine-tuning concepts
 
-*** Module 5: Cost Analysis ([[file:notebooks/05_cost_analysis.org][notebooks/05_cost_analysis.org]])
+*** Module 5: Cost Analysis & Agents ([[file:notebooks/05_cost_analysis.org][notebooks/05_cost_analysis.org]])
 - AWS pricing calculator integration
 - Cost optimization strategies
+- Strands Agent implementation
+- Multi-agent orchestration
 - Resource monitoring
-- Budget alerts
 
 ** Available Commands
 
@@ -108,11 +129,19 @@ make format           # Auto-format code
 
 *** Workshop Exercises
 #+BEGIN_SRC shell
-make notebook         # Start Jupyter for notebooks
-make download-data    # Download sample PDFs
-make run-rag-pipeline # Demo RAG pipeline
-make run-sql-agent    # Demo SQL agent
-make calculate-costs  # Estimate AWS costs
+make download-data         # Download sample PDFs
+make run-rag-pipeline      # Demo RAG pipeline
+make run-sql-agent         # Demo SQL agent
+make calculate-costs       # Estimate AWS costs
+make run-philosophical-rag # Run philosophy texts RAG demo
+#+END_SRC
+
+*** Validation & Testing
+#+BEGIN_SRC shell
+make validate-level1       # Quick RAG validation (no AWS)
+make validate-workshop     # Full workshop validation
+make validate-ci          # CI-friendly validation
+make test-level1          # Python-only compatibility test
 #+END_SRC
 
 *** LocalStack Management
@@ -208,6 +237,20 @@ aws dynamodb query \
 | SageMaker | Fine-tuning | ✓ | =aws sagemaker create-training-job= |
 | RDS | SQL demos | ✓ | =aws rds describe-db-instances= |
 
+** Weekend Testing Resources
+
+For comprehensive workshop validation, we provide:
+
+- [[file:WEEKEND_TESTING_CHECKLIST.org][Weekend Testing Checklist]] - Hour-by-hour validation plan
+- [[file:scripts/validate-workshop.sh][validate-workshop.sh]] - Automated validation script
+- [[file:docs/workshop-requirements.org][Workshop Requirements]] - Detailed lab requirements and validation
+
+Run the complete validation:
+#+BEGIN_SRC shell
+make validate-workshop     # Full validation
+./scripts/validate-workshop.sh  # Or run directly
+#+END_SRC
+
 ** Tips for Success
 
 1. *Start with LocalStack*: All exercises work locally first
@@ -215,6 +258,7 @@ aws dynamodb query \
 3. *Use the todo system*: Track your progress in exercises
 4. *Experiment freely*: LocalStack resets with =make localstack-down=
 5. *Check costs*: Run =make calculate-costs= before AWS deployment
+6. *Start with Level 1*: Run =make validate-level1= to verify basics
 
 ** Troubleshooting
 

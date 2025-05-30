@@ -1,0 +1,238 @@
+#+TITLE: AWS GenAI RAG Workshop - Weekend Testing Checklist
+#+AUTHOR: Jason Walsh
+#+DATE: 2025-05-30
+#+STARTUP: overview
+
+* Pre-Workshop Setup (Friday Evening)
+
+** Environment Setup
+- [ ] Clone repository fresh
+- [ ] Run ~direnv allow~ to setup Python environment
+- [ ] Verify ~.env~ file has AWS credentials
+- [ ] Test AWS access: ~source .env && aws sts get-caller-identity~
+- [ ] Download philosophy texts: ~make download-all~
+
+** Resource Preparation
+- [ ] Review account limits for Bedrock models
+- [ ] Check AWS budget alerts are configured
+- [ ] Ensure us-west-2 region is selected
+- [ ] Have AWS Console open for monitoring
+
+* Saturday Morning: Core Infrastructure
+
+** Hour 1: Basic Validation (8-9 AM)
+- [ ] Run consolidated notebook: ~notebooks/01_rag_basics_consolidated.org~
+- [ ] Complete Level 0 test (local embeddings)
+- [ ] Complete Level 1 test (philosophical RAG)
+- [ ] Verify no AWS dependencies are broken
+
+** Hour 2: AWS Setup (9-10 AM)
+- [ ] Create S3 bucket with proper naming
+- [ ] Upload 10-K reports with metadata
+- [ ] Create IAM role for Bedrock
+- [ ] Test Bedrock embedding model
+
+** Hour 3: OpenSearch Setup (10-11 AM)
+- [ ] Create encryption policy
+- [ ] Create network policy
+- [ ] Create OpenSearch collection
+- [ ] Wait for ACTIVE status
+- [ ] Create data access policy
+
+** Hour 4: Knowledge Base Creation (11 AM-12 PM)
+- [ ] Create KB with fixed chunking
+- [ ] Create KB with semantic chunking
+- [ ] Create KB with hierarchical chunking
+- [ ] Create KB with no chunking
+- [ ] Start ingestion jobs
+
+* Saturday Afternoon: Advanced Features
+
+** Lab 2: Enhanced Retrieval (1-2 PM)
+- [ ] Test metadata filtering by year
+- [ ] Create content guardrails
+- [ ] Test citation extraction
+- [ ] Compare filtered vs unfiltered results
+
+** Lab 3: Text-to-SQL (2-3 PM)
+- [ ] Create Athena database
+- [ ] Upload sample CSV data
+- [ ] Create Glue tables
+- [ ] Test natural language queries
+- [ ] Verify SQL generation accuracy
+
+** Lab 4: Evaluation (3-4 PM)
+- [ ] Install evaluation dependencies
+- [ ] Create test query set
+- [ ] Run RAGAS evaluation
+- [ ] Benchmark retrieval latency
+- [ ] Compare chunking strategies
+
+** Lab 5: Agents (4-5 PM)
+- [ ] Test basic agent invocation
+- [ ] Create web scraping agent
+- [ ] Test multi-agent coordination
+- [ ] Verify artifact generation
+- [ ] Upload artifacts to S3
+
+* Sunday: Documentation & Cleanup
+
+** Morning: Final Validation (9 AM-12 PM)
+- [ ] Run complete workshop flow end-to-end
+- [ ] Document any issues encountered
+- [ ] Capture all Knowledge Base IDs
+- [ ] Save cost analysis results
+- [ ] Generate evaluation report
+
+** Afternoon: Cleanup & Report (1-3 PM)
+- [ ] Delete test Knowledge Bases (optional)
+- [ ] Clean up S3 buckets (optional)
+- [ ] Delete OpenSearch collections (optional)
+- [ ] Calculate total workshop costs
+- [ ] Write workshop feedback report
+
+* Quick Validation Commands
+
+** Test Everything Script
+#+BEGIN_SRC shell
+#!/bin/bash
+# Save as validate-workshop.sh
+
+source .env
+
+echo "=== Workshop Validation Status ==="
+echo "Time: $(date)"
+echo ""
+
+# Check each component
+components=(
+    "AWS Auth:aws sts get-caller-identity"
+    "Bedrock Models:aws bedrock list-foundation-models --region us-west-2 --query 'length(modelSummaries)'"
+    "S3 Bucket:aws s3 ls | grep -c rag-workshop"
+    "OpenSearch:aws opensearchserverless list-collections --query 'length(collectionSummaries)'"
+    "Knowledge Bases:aws bedrock-agent list-knowledge-bases --query 'length(knowledgeBaseSummaries)'"
+    "Athena DB:aws athena list-databases --catalog-name AwsDataCatalog --query 'length(DatabaseList)'"
+)
+
+for component in "${components[@]}"; do
+    IFS=':' read -r name command <<< "$component"
+    printf "%-20s" "$name"
+    result=$(eval $command 2>/dev/null)
+    if [ $? -eq 0 ]; then
+        echo "✅ ($result)"
+    else
+        echo "❌"
+    fi
+done
+#+END_SRC
+
+* Cost Tracking
+
+** Expected Costs by Component
+| Component | Estimated Cost | Actual Cost | Notes |
+|-----------+----------------+-------------+-------|
+| Bedrock Embeddings | $2-3 | | Titan Embed V2 |
+| Bedrock Generation | $5-10 | | Claude 3 Haiku |
+| OpenSearch Serverless | $1-2 | | ~2 hours usage |
+| S3 Storage | <$1 | | 10-K PDFs |
+| Athena Queries | <$1 | | Test queries |
+| **Total** | **$15-25** | | Per participant |
+
+** Cost Monitoring Commands
+#+BEGIN_SRC shell
+# Check S3 usage
+aws s3 ls s3://${S3_BUCKET} --recursive --summarize | grep "Total Size"
+
+# List recent Bedrock invocations (CloudWatch)
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/Bedrock \
+  --metric-name InvocationCount \
+  --dimensions Name=ModelId,Value=amazon.titan-embed-text-v2:0 \
+  --start-time $(date -u -d '1 day ago' +%Y-%m-%dT%H:%M:%S) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+  --period 3600 \
+  --statistics Sum
+#+END_SRC
+
+* Troubleshooting Checklist
+
+** If AWS Auth Fails
+- [ ] Check ~/.aws/credentials exists
+- [ ] Verify .env has correct variables
+- [ ] Test with: ~aws configure list~
+- [ ] Try explicit profile: ~export AWS_PROFILE=default~
+
+** If Bedrock Fails
+- [ ] Verify region is us-west-2
+- [ ] Check model access in console
+- [ ] Enable models if needed
+- [ ] Check IAM permissions include bedrock:*
+
+** If OpenSearch Fails
+- [ ] Wait 5-10 minutes for collection creation
+- [ ] Check security policies were created
+- [ ] Verify network policy allows public access
+- [ ] Check CloudWatch logs for errors
+
+** If Knowledge Base Fails
+- [ ] Ensure S3 bucket has documents
+- [ ] Check IAM role trust relationship
+- [ ] Verify OpenSearch is ACTIVE
+- [ ] Check ingestion job status
+
+* Success Criteria
+
+By end of weekend, you should have:
+
+1. **Working Environment**
+   - [ ] All Python dependencies installed
+   - [ ] AWS CLI configured and working
+   - [ ] Can run all notebooks without errors
+
+2. **Created Resources**
+   - [ ] 1 S3 bucket with 10-K reports
+   - [ ] 1 OpenSearch collection (ACTIVE)
+   - [ ] 4 Knowledge Bases (different chunking)
+   - [ ] 1 Athena database with tables
+   - [ ] Multiple test artifacts
+
+3. **Validated Features**
+   - [ ] RAG retrieval working
+   - [ ] Metadata filtering functional
+   - [ ] Guardrails blocking content
+   - [ ] Text-to-SQL generating queries
+   - [ ] Evaluation metrics calculated
+   - [ ] Agents creating artifacts
+
+4. **Documentation**
+   - [ ] All resource IDs saved
+   - [ ] Cost breakdown documented
+   - [ ] Issues/solutions noted
+   - [ ] Performance metrics captured
+
+* Post-Workshop
+
+** Cleanup Commands (Optional)
+#+BEGIN_SRC shell
+# Delete Knowledge Bases
+for kb_id in $(aws bedrock-agent list-knowledge-bases --query 'knowledgeBaseSummaries[*].knowledgeBaseId' --output text); do
+    echo "Deleting KB: $kb_id"
+    aws bedrock-agent delete-knowledge-base --knowledge-base-id $kb_id
+done
+
+# Empty and delete S3 bucket
+aws s3 rm s3://${S3_BUCKET} --recursive
+aws s3 rb s3://${S3_BUCKET}
+
+# Delete OpenSearch collection
+aws opensearchserverless delete-collection --id ${COLLECTION_ID}
+#+END_SRC
+
+** Save Results
+- [ ] Export all Knowledge Base configurations
+- [ ] Save evaluation metrics
+- [ ] Document best chunking strategy
+- [ ] Calculate ROI for production use
+- [ ] Create implementation plan
+
+Good luck with your weekend testing! 🚀

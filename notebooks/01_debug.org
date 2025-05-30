@@ -1,0 +1,169 @@
+* Core Setup 
+
+#+begin_src shell
+source ../.env 
+env | grep AWS | cut -c 1-40
+#+end_src
+
+#+RESULTS:
+| AWS_DEFAULT_REGION=us-west-2             |
+| AWS_ACCESS_KEY_ID=ASIAUJ4VFZPS7G7QSPWY   |
+| AWS_SECRET_ACCESS_KEY=aSSjbeXGp+sPLIGxst |
+| AWS_SESSION_TOKEN=IQoJb3JpZ2luX2VjEMf/// |
+
+
+* Resources 
+
+#+begin_src shell 
+source ../.env 
+aws sts get-caller-identity --query Account --output json 
+#+end_src
+
+#+RESULTS:
+: 296128728037
+
+
+- 296128728037-us-west-2-advanced-rag-workshop
+
+#+begin_src shell 
+source ../.env 
+
+  # Get account number and set region
+  ACCOUNT_NUMBER=$(aws sts get-caller-identity --query Account --output text)
+  REGION_NAME="us-west-2"
+
+  # Set all resource names exactly as the Python function does
+  S3_BUCKET_NAME="${ACCOUNT_NUMBER}-${REGION_NAME}-advanced-rag-workshop"
+  KNOWLEDGE_BASE_NAME_AOSS="advanced-rag-workshop-knowledgebase-aoss"
+  KNOWLEDGE_BASE_NAME_GRAPHRAG="advanced-rag-workshop-knowledgebase-graphrag"
+  OSS_VECTOR_STORE_NAME="advancedrag"
+  OSS_INDEX_NAME="ws-index-"
+
+  # Create S3 bucket
+  aws s3 mb s3://${S3_BUCKET_NAME} --region ${REGION_NAME}
+
+#+end_src
+
+#+RESULTS:
+: make_bucket: 296128728037-us-west-2-advanced-rag-workshop
+
+#+begin_src shell 
+source ../.env 
+aws s3 ls 
+#+end_src
+
+#+RESULTS:
+
+* Models 
+
+#+begin_src shell
+source ../.env 
+aws bedrock list-foundation-models | jq -r '.modelSummaries[]|.modelId'
+#+end_src
+
+#+RESULTS:
+| amazon.titan-tg1-large                         |
+| amazon.nova-premier-v1:0:8k                    |
+| amazon.nova-premier-v1:0:20k                   |
+| amazon.nova-premier-v1:0:1000k                 |
+| amazon.nova-premier-v1:0:mm                    |
+| amazon.nova-premier-v1:0                       |
+| amazon.titan-embed-g1-text-02                  |
+| amazon.titan-text-lite-v1:0:4k                 |
+| amazon.titan-text-lite-v1                      |
+| amazon.titan-text-express-v1:0:8k              |
+| amazon.titan-text-express-v1                   |
+| amazon.nova-pro-v1:0                           |
+| amazon.nova-lite-v1:0                          |
+| amazon.nova-micro-v1:0                         |
+| amazon.titan-embed-text-v1:2:8k                |
+| amazon.titan-embed-text-v1                     |
+| amazon.titan-embed-text-v2:0                   |
+| amazon.titan-embed-image-v1:0                  |
+| amazon.titan-embed-image-v1                    |
+| amazon.titan-image-generator-v1:0              |
+| amazon.titan-image-generator-v1                |
+| amazon.titan-image-generator-v2:0              |
+| amazon.rerank-v1:0                             |
+| stability.sd3-large-v1:0                       |
+| stability.sd3-5-large-v1:0                     |
+| stability.stable-image-core-v1:0               |
+| stability.stable-image-core-v1:1               |
+| stability.stable-image-ultra-v1:0              |
+| stability.stable-image-ultra-v1:1              |
+| anthropic.claude-3-5-sonnet-20241022-v2:0:18k  |
+| anthropic.claude-3-5-sonnet-20241022-v2:0:51k  |
+| anthropic.claude-3-5-sonnet-20241022-v2:0:200k |
+| anthropic.claude-3-5-sonnet-20241022-v2:0      |
+| anthropic.claude-3-7-sonnet-20250219-v1:0      |
+| anthropic.claude-3-5-haiku-20241022-v1:0       |
+| anthropic.claude-instant-v1:2:100k             |
+| anthropic.claude-instant-v1                    |
+| anthropic.claude-v2:0:18k                      |
+| anthropic.claude-v2:0:100k                     |
+| anthropic.claude-v2:1:18k                      |
+| anthropic.claude-v2:1:200k                     |
+| anthropic.claude-v2:1                          |
+| anthropic.claude-v2                            |
+| anthropic.claude-3-sonnet-20240229-v1:0:28k    |
+| anthropic.claude-3-sonnet-20240229-v1:0:200k   |
+| anthropic.claude-3-sonnet-20240229-v1:0        |
+| anthropic.claude-3-haiku-20240307-v1:0:48k     |
+| anthropic.claude-3-haiku-20240307-v1:0:200k    |
+| anthropic.claude-3-haiku-20240307-v1:0         |
+| anthropic.claude-3-opus-20240229-v1:0:12k      |
+| anthropic.claude-3-opus-20240229-v1:0:28k      |
+| anthropic.claude-3-opus-20240229-v1:0:200k     |
+| anthropic.claude-3-opus-20240229-v1:0          |
+| anthropic.claude-3-5-sonnet-20240620-v1:0:18k  |
+| anthropic.claude-3-5-sonnet-20240620-v1:0:51k  |
+| anthropic.claude-3-5-sonnet-20240620-v1:0:200k |
+| anthropic.claude-3-5-sonnet-20240620-v1:0      |
+| anthropic.claude-opus-4-20250514-v1:0          |
+| anthropic.claude-sonnet-4-20250514-v1:0        |
+| cohere.command-text-v14:7:4k                   |
+| cohere.command-text-v14                        |
+| cohere.command-r-v1:0                          |
+| cohere.command-r-plus-v1:0                     |
+| cohere.command-light-text-v14:7:4k             |
+| cohere.command-light-text-v14                  |
+| cohere.embed-english-v3:0:512                  |
+| cohere.embed-english-v3                        |
+| cohere.embed-multilingual-v3:0:512             |
+| cohere.embed-multilingual-v3                   |
+| cohere.rerank-v3-5:0                           |
+| deepseek.r1-v1:0                               |
+| meta.llama3-8b-instruct-v1:0                   |
+| meta.llama3-70b-instruct-v1:0                  |
+| meta.llama3-1-8b-instruct-v1:0:128k            |
+| meta.llama3-1-8b-instruct-v1:0                 |
+| meta.llama3-1-70b-instruct-v1:0:128k           |
+| meta.llama3-1-70b-instruct-v1:0                |
+| meta.llama3-1-405b-instruct-v1:0               |
+| meta.llama3-2-11b-instruct-v1:0:128k           |
+| meta.llama3-2-11b-instruct-v1:0                |
+| meta.llama3-2-90b-instruct-v1:0:128k           |
+| meta.llama3-2-90b-instruct-v1:0                |
+| meta.llama3-2-1b-instruct-v1:0:128k            |
+| meta.llama3-2-1b-instruct-v1:0                 |
+| meta.llama3-2-3b-instruct-v1:0:128k            |
+| meta.llama3-2-3b-instruct-v1:0                 |
+| meta.llama3-3-70b-instruct-v1:0                |
+| meta.llama4-scout-17b-instruct-v1:0            |
+| meta.llama4-maverick-17b-instruct-v1:0         |
+| mistral.mistral-7b-instruct-v0:2               |
+| mistral.mixtral-8x7b-instruct-v0:1             |
+| mistral.mistral-large-2402-v1:0                |
+| mistral.mistral-large-2407-v1:0                |
+| mistral.pixtral-large-2502-v1:0                |
+| luma.ray-v2:0                                  |
+| writer.palmyra-x4-v1:0                         |
+| writer.palmyra-x5-v1:0                         |
+
+* Document Uploads  
+#+begin_src shell
+source ../.env 
+aws s3 ls 
+#+end_src
+
+#+RESULTS:

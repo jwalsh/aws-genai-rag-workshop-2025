@@ -1,0 +1,346 @@
+#+TITLE: AWS GenAI RAG Workshop Requirements & Validation
+#+AUTHOR: Jason Walsh
+#+DATE: 2025-05-30
+
+* Overview
+
+This document captures the high-level requirements and validation criteria for the AWS GenAI RAG Workshop, extracted from the original Jupyter notebooks. The goal is to refactor the workshop for Org Mode with AWS CLI commands, removing excessive Python boilerplate while maintaining all learning objectives.
+
+* Lab Requirements Summary
+
+** Lab 1: Build your RAG Application
+
+*** Core Requirements
+1. *AWS Account Setup*
+   #+BEGIN_SRC bash
+   # Verify AWS credentials
+   aws sts get-caller-identity
+   
+   # Check Bedrock model access
+   aws bedrock list-foundation-models --region us-west-2
+   #+END_SRC
+
+2. *Resource Creation*
+   - S3 bucket for documents
+   - IAM role for Bedrock execution
+   - OpenSearch Serverless collection
+   - CloudWatch log groups
+
+3. *Knowledge Base Setup*
+   - Create 4 different chunking strategies:
+     - Fixed-size chunking (300 tokens, 10% overlap)
+     - Semantic chunking
+     - Hierarchical chunking
+     - No chunking (baseline)
+
+4. *Data Ingestion*
+   - Download Amazon 10-K reports
+   - Upload to S3 with metadata
+   - Trigger ingestion jobs
+
+*** Validation Criteria
+#+BEGIN_SRC bash
+# Verify S3 bucket exists and contains documents
+aws s3 ls s3://${S3_BUCKET_NAME}/10k-reports/
+
+# Check OpenSearch collection status
+aws opensearchserverless batch-get-collection \
+  --ids ${COLLECTION_ID} \
+  --query 'collectionDetails[0].status'
+
+# Verify Knowledge Base creation
+aws bedrock-agent get-knowledge-base \
+  --knowledge-base-id ${KB_ID}
+
+# Test retrieval
+aws bedrock-agent-runtime retrieve \
+  --knowledge-base-id ${KB_ID} \
+  --retrieval-query '{"text": "What is Amazon revenue?"}'
+#+END_SRC
+
+*** Expected Outputs
+- 4 Knowledge Base IDs (one per chunking strategy)
+- Cost analysis showing token usage per strategy
+- Retrieval accuracy metrics
+- Saved configuration file with all resource IDs
+
+** Lab 2: Improve Accuracy and Safety
+
+*** Core Requirements
+1. *Metadata Filtering*
+   - Add year-based filtering to queries
+   - Implement dynamic entity extraction
+   - Filter results by document source
+
+2. *Guardrails Implementation*
+   - Create content filtering guardrails
+   - Configure denied topics and sensitive info filtering
+   - Apply guardrails to generation
+
+3. *Reranking*
+   - Implement result reranking for improved relevance
+   - Compare before/after retrieval quality
+
+*** Validation Criteria
+#+BEGIN_SRC bash
+# Test filtered retrieval
+aws bedrock-agent-runtime retrieve \
+  --knowledge-base-id ${KB_ID} \
+  --retrieval-query '{"text": "Amazon revenue in 2023"}' \
+  --retrieval-configuration '{"vectorSearchConfiguration": {"filter": {"equals": {"year": "2023"}}}}'
+
+# Verify guardrail creation
+aws bedrock list-guardrails \
+  --query "guardrails[?name=='workshop-guardrail']"
+
+# Test generation with guardrails
+aws bedrock-runtime invoke-model \
+  --model-id anthropic.claude-3-haiku-20240307-v1:0 \
+  --guardrail-identifier ${GUARDRAIL_ID} \
+  --body '{"prompt": "test prompt"}'
+#+END_SRC
+
+*** Expected Outputs
+- Filtered query results with metadata
+- Guardrail configuration and test results
+- Citation extraction from responses
+- Comparison metrics (filtered vs unfiltered)
+
+** Lab 3: Text to SQL Agent
+
+*** Core Requirements
+1. *Database Setup*
+   - Create Athena database
+   - Define tables for financial/sales data
+   - Load sample CSV data
+
+2. *Agent Implementation*
+   - Natural language to SQL conversion
+   - Error handling and retry logic
+   - Support for complex queries (JOINs, aggregations)
+
+*** Validation Criteria
+#+BEGIN_SRC bash
+# Verify Athena database
+aws athena list-databases \
+  --catalog-name AwsDataCatalog \
+  --query "DatabaseList[?Name=='workshop_db']"
+
+# Test SQL generation (via agent)
+# Sample queries to test:
+# - "Show me total sales by region"
+# - "What are the top 5 products by revenue?"
+# - "Compare Q1 vs Q2 performance"
+
+# Check query execution
+aws athena get-query-execution \
+  --query-execution-id ${QUERY_ID}
+#+END_SRC
+
+*** Expected Outputs
+- Working Text-to-SQL agent
+- Successfully executed complex queries
+- Cost analysis for LLM usage
+- Agent thought process logs
+
+** Lab 4: Experiment with FloTorch
+
+*** Core Requirements
+1. *Evaluation Framework*
+   - Install FloTorch evaluation tools
+   - Create ground truth Q&A pairs
+   - Implement RAGAS metrics
+
+2. *Comparative Analysis*
+   - Evaluate all 4 KB configurations from Lab 1
+   - Measure accuracy, latency, and cost
+   - Generate performance reports
+
+*** Validation Criteria
+#+BEGIN_SRC python
+# Evaluation metrics to capture:
+# - Faithfulness score
+# - Answer relevancy
+# - Context precision
+# - Response latency
+# - Token usage/cost
+
+# Expected metric ranges:
+# Faithfulness: > 0.8
+# Relevancy: > 0.7
+# Latency: < 3 seconds
+#+END_SRC
+
+*** Expected Outputs
+- Evaluation report comparing all strategies
+- Optimal configuration recommendation
+- Performance visualization graphs
+- Cost-benefit analysis
+
+** Lab 5: Strands Agent
+
+*** Core Requirements
+1. *Agent Creation*
+   - Build multiple specialized agents
+   - Implement custom tools
+   - Enable multi-agent orchestration
+
+2. *Use Cases*
+   - Web scraping agent
+   - Financial analysis agent
+   - AWS architecture diagram generator
+   - ML pipeline automation
+
+*** Validation Criteria
+#+BEGIN_SRC bash
+# Test agent execution
+# Each agent should successfully:
+# - Complete its designated task
+# - Use appropriate tools
+# - Generate expected artifacts
+
+# Verify artifact generation
+ls -la generated_artifacts/
+#+END_SRC
+
+*** Expected Outputs
+- Working agents for each use case
+- Generated artifacts (CSVs, diagrams, reports)
+- Multi-agent coordination examples
+- Custom tool implementations
+
+* Refactoring Strategy
+
+** Replace Jupyter cells with Org Mode blocks
+
+*** Example Transformation
+Original Jupyter:
+```python
+# Cell 1: Setup
+region_name = "us-west-2"
+aws_info = aru.get_aws_account_info(region_name)
+account_number = aws_info["account_number"]
+
+# Cell 2: Create resources
+s3_bucket_name = resource_names["s3_bucket_name"]
+aru.create_s3_bucket(s3_bucket_name, region_name)
+```
+
+Refactored Org Mode:
+#+BEGIN_SRC bash :results output
+# Setup environment
+source .env
+export AWS_REGION="us-west-2"
+export ACCOUNT_NUMBER=$(aws sts get-caller-identity --query Account --output text)
+
+# Create S3 bucket
+export S3_BUCKET_NAME="${ACCOUNT_NUMBER}-${AWS_REGION}-advanced-rag-workshop"
+aws s3 mb s3://${S3_BUCKET_NAME} --region ${AWS_REGION}
+#+END_SRC
+
+** Benefits of Refactoring
+
+1. *Simplicity*: Direct AWS CLI commands instead of Python wrappers
+2. *Transparency*: Clear view of actual AWS operations
+3. *Portability*: No Python environment dependencies
+4. *Debugging*: Easier to troubleshoot with AWS CLI
+5. *Learning*: Better understanding of AWS services
+
+* Validation Checklist
+
+** Pre-Workshop Setup
+- [ ] AWS account with appropriate permissions
+- [ ] Bedrock models enabled (Claude, Titan)
+- [ ] AWS CLI configured and working
+- [ ] Org Mode environment set up
+
+** Lab 1 Validation
+- [ ] All 4 Knowledge Bases created successfully
+- [ ] Documents ingested into each KB
+- [ ] Retrieval queries return relevant results
+- [ ] Cost analysis completed
+
+** Lab 2 Validation
+- [ ] Metadata filtering working
+- [ ] Guardrails blocking inappropriate content
+- [ ] Citations extracted from responses
+- [ ] Reranking improving relevance
+
+** Lab 3 Validation
+- [ ] Athena database and tables created
+- [ ] Natural language queries converted to SQL
+- [ ] Complex queries executed successfully
+- [ ] Agent logs showing reasoning
+
+** Lab 4 Validation
+- [ ] FloTorch evaluation completed
+- [ ] All KB strategies compared
+- [ ] Performance metrics generated
+- [ ] Optimal configuration identified
+
+** Lab 5 Validation
+- [ ] All agents created and functional
+- [ ] Custom tools integrated
+- [ ] Multi-agent orchestration working
+- [ ] Expected artifacts generated
+
+* Cost Estimates
+
+Based on workshop analysis:
+
+** Per Participant Costs
+- Embedding generation: ~$2-5
+- LLM inference: ~$5-10
+- OpenSearch Serverless: ~$1/hour
+- S3 storage: < $1
+- Athena queries: < $1
+
+*Total estimated cost per participant: $15-25*
+
+** Optimization Opportunities
+1. Use smaller models where appropriate (Haiku vs Sonnet)
+2. Implement caching for repeated queries
+3. Clean up resources after each lab
+4. Use LocalStack for initial testing
+
+* GitHub Issue Template
+
+```markdown
+## Refactor AWS GenAI RAG Workshop for Org Mode and AWS CLI
+
+### Objective
+Transform the existing Jupyter notebook-based workshop into a cleaner Org Mode implementation using AWS CLI commands instead of Python boilerplate.
+
+### Motivation
+- Current notebooks contain excessive Python wrapper code
+- AWS CLI commands are more transparent and educational
+- Org Mode provides better documentation and execution capabilities
+- Reduces setup complexity and dependencies
+
+### Deliverables
+- [ ] Refactored Lab 1: RAG basics with AWS CLI
+- [ ] Refactored Lab 2: Accuracy & safety improvements
+- [ ] Refactored Lab 3: Text-to-SQL implementation
+- [ ] Refactored Lab 4: Evaluation framework
+- [ ] Refactored Lab 5: Agent development
+- [ ] Comprehensive validation suite
+- [ ] Cost optimization guide
+
+### Success Criteria
+- All original learning objectives maintained
+- Reduced code complexity by >50%
+- Clear AWS CLI commands for all operations
+- Working validation tests for each lab
+- Documentation of cost implications
+
+### Technical Requirements
+- AWS CLI v2
+- Org Mode with babel support
+- Bash/shell scripting
+- Optional: Python only for complex logic
+
+### Timeline
+- Phase 1: Labs 1-2 refactoring (Week 1)
+- Phase 2: Labs 3-5 refactoring (Week 2)
+- Phase 3: Validation and documentation (Week 3)
+```

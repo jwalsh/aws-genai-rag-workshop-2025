@@ -3,6 +3,90 @@
 #+DATE: 2025-05-26
 #+PROPERTY: header-args:python :results output :mkdirp yes
 
+* Workshop Requirements - Lab 4: Experiment with FloTorch
+
+** Learning Objectives
+- Evaluate RAG pipeline performance objectively
+- Compare different chunking strategies from Lab 1
+- Use RAGAS framework for evaluation metrics
+- Optimize for accuracy, cost, and latency
+
+** Prerequisites Validation
+
+#+BEGIN_SRC shell
+# 1. Verify Knowledge Bases from Lab 1 exist
+aws bedrock-agent list-knowledge-bases \
+  --query "knowledgeBaseSummaries[?contains(name, 'advanced-rag')].{id:knowledgeBaseId,name:name}" \
+  --output table
+
+# 2. Check if evaluation data exists
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+S3_BUCKET="${ACCOUNT_ID}-us-west-2-advanced-rag-workshop"
+aws s3 ls s3://${S3_BUCKET}/evaluation-data/ 2>/dev/null || echo "Evaluation data not found"
+
+# 3. Verify Python environment for FloTorch
+python -c "import flotorch" 2>/dev/null && echo "FloTorch available" || echo "FloTorch not installed"
+
+# 4. Check RAGAS installation
+python -c "import ragas" 2>/dev/null && echo "RAGAS available" || echo "RAGAS not installed"
+#+END_SRC
+
+** Expected Evaluation Components
+
+1. **Ground Truth Dataset**: Q&A pairs for evaluation
+2. **RAGAS Metrics**:
+   - Faithfulness: Are answers grounded in context?
+   - Answer Relevancy: How relevant is the answer?
+   - Context Precision: Are retrieved contexts ranked properly?
+   - Context Recall: Are all relevant contexts retrieved?
+3. **Performance Metrics**: Latency, token usage, cost
+4. **Comparison Framework**: Side-by-side KB evaluation
+
+** Validation Commands
+
+#+BEGIN_SRC shell
+# List all Knowledge Bases to evaluate
+KB_IDS=$(aws bedrock-agent list-knowledge-bases \
+  --query "knowledgeBaseSummaries[?contains(name, 'advanced-rag')].knowledgeBaseId" \
+  --output text)
+
+echo "Knowledge Bases to evaluate:"
+echo "$KB_IDS" | tr '\t' '\n'
+
+# Test retrieval performance for each KB
+for KB_ID in $KB_IDS; do
+  echo "\n=== Testing KB: $KB_ID ==="
+  
+  # Time the retrieval
+  time aws bedrock-agent-runtime retrieve \
+    --knowledge-base-id ${KB_ID} \
+    --retrieval-query '{"text": "What was Amazon Web Services revenue in 2023?"}' \
+    --retrieval-configuration '{"vectorSearchConfiguration": {"numberOfResults": 5}}' \
+    --query "length(retrievalResults)" \
+    --output text
+done
+
+# Create evaluation metrics file
+cat > evaluation-metrics.json << EOF
+{
+  "metrics": [
+    "faithfulness",
+    "answer_relevancy",
+    "context_precision",
+    "context_recall"
+  ],
+  "knowledge_bases": $(echo $KB_IDS | jq -R 'split(" ")'),
+  "test_queries": [
+    "What was AWS revenue in 2023?",
+    "Describe Amazon's cloud computing services",
+    "What are the main business segments?",
+    "How does Amazon approach AI and machine learning?",
+    "What are the key financial metrics for Q4 2023?"
+  ]
+}
+EOF
+#+END_SRC
+
 * Overview
 
 This notebook explores fine-tuning techniques for improving RAG system performance in domain-specific applications. We'll cover:
@@ -1254,3 +1338,164 @@ Key takeaways:
 3. Start with embeddings before fine-tuning LLMs
 4. Always evaluate against strong baselines
 5. Consider costs vs. benefits before committing to fine-tuning
+
+* Lab 4 Validation Checklist (FloTorch Evaluation)
+
+Complete these validation steps to ensure your evaluation framework is working:
+
+** RAGAS Metrics Collection
+
+#+BEGIN_SRC shell
+# 1. For each Knowledge Base, collect metrics
+KB_IDS="kb-id-1 kb-id-2 kb-id-3 kb-id-4"  # Replace with actual IDs
+
+# Create evaluation results directory
+mkdir -p evaluation-results
+
+# Test each KB with standard queries
+for KB_ID in $KB_IDS; do
+  echo "Evaluating KB: $KB_ID"
+  
+  # Retrieve and generate for evaluation
+  aws bedrock-agent-runtime retrieve-and-generate \
+    --input '{"text": "What was Amazon total revenue in 2023?"}' \
+    --retrieve-and-generate-configuration "{
+      \"type\": \"KNOWLEDGE_BASE\",
+      \"knowledgeBaseConfiguration\": {
+        \"knowledgeBaseId\": \"${KB_ID}\",
+        \"modelArn\": \"arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-haiku-20240307-v1:0\"
+      }
+    }" > "evaluation-results/${KB_ID}-response.json"
+done
+
+# Extract metrics for comparison
+for KB_ID in $KB_IDS; do
+  echo "KB: $KB_ID"
+  jq '.citations | length' "evaluation-results/${KB_ID}-response.json"
+done
+#+END_SRC
+
+** Performance Benchmarking
+
+#+BEGIN_SRC shell
+# Benchmark retrieval latency
+for KB_ID in $KB_IDS; do
+  echo "=== Benchmarking KB: $KB_ID ==="
+  
+  # Run 5 test queries and measure time
+  for i in {1..5}; do
+    START=$(date +%s.%N)
+    
+    aws bedrock-agent-runtime retrieve \
+      --knowledge-base-id ${KB_ID} \
+      --retrieval-query '{"text": "Amazon Web Services"}' \
+      --retrieval-configuration '{"vectorSearchConfiguration": {"numberOfResults": 10}}' \
+      --query "length(retrievalResults)" \
+      --output text > /dev/null
+    
+    END=$(date +%s.%N)
+    DIFF=$(echo "$END - $START" | bc)
+    echo "Query $i: ${DIFF}s"
+  done
+  echo ""
+done
+#+END_SRC
+
+** Cost Analysis
+
+#+BEGIN_SRC shell
+# Calculate costs for each KB configuration
+echo "Knowledge Base Cost Analysis"
+echo "============================"
+
+# Estimate based on token usage
+for KB_ID in $KB_IDS; do
+  # Get KB details
+  KB_NAME=$(aws bedrock-agent get-knowledge-base \
+    --knowledge-base-id ${KB_ID} \
+    --query "knowledgeBase.name" \
+    --output text)
+  
+  echo "KB: $KB_NAME ($KB_ID)"
+  echo "- Embedding model: Titan Embed V2"
+  echo "- Estimated tokens embedded: ~500K"
+  echo "- Embedding cost: $0.01 (500K * $0.00002/1K tokens)"
+  echo "- Monthly storage: $0.024/GB * 0.1GB = $0.0024"
+  echo ""
+done
+#+END_SRC
+
+** Evaluation Report Template
+
+#+BEGIN_SRC shell
+# Generate evaluation summary
+cat > evaluation-summary.md << 'EOFILE'
+# RAG Evaluation Summary
+
+## Knowledge Base Configurations
+
+1. **Fixed Chunking (300 tokens, 10% overlap)**
+   - KB ID: kb-xxxxx-1
+   - Chunks created: X,XXX
+   - Avg retrieval time: X.XXs
+
+2. **Semantic Chunking**
+   - KB ID: kb-xxxxx-2
+   - Chunks created: X,XXX
+   - Avg retrieval time: X.XXs
+
+3. **Hierarchical Chunking**
+   - KB ID: kb-xxxxx-3
+   - Chunks created: X,XXX
+   - Avg retrieval time: X.XXs
+
+4. **No Chunking**
+   - KB ID: kb-xxxxx-4
+   - Documents: XXX
+   - Avg retrieval time: X.XXs
+
+## RAGAS Metrics
+
+| Metric | Fixed | Semantic | Hierarchical | No Chunking |
+|--------|-------|----------|--------------|-------------|
+| Faithfulness | 0.XX | 0.XX | 0.XX | 0.XX |
+| Relevancy | 0.XX | 0.XX | 0.XX | 0.XX |
+| Context Precision | 0.XX | 0.XX | 0.XX | 0.XX |
+| Context Recall | 0.XX | 0.XX | 0.XX | 0.XX |
+
+## Recommendations
+
+Based on the evaluation:
+- Best overall performance: [KB Configuration]
+- Best cost/performance ratio: [KB Configuration]
+- Recommended for production: [KB Configuration]
+EOFILE
+#+END_SRC
+
+** Expected Outputs
+
+- [ ] RAGAS metrics for all 4 KB configurations
+- [ ] Performance benchmarks (latency, throughput)
+- [ ] Cost analysis per configuration
+- [ ] Clear recommendation for production use
+- [ ] Evaluation artifacts saved for reference
+
+** Key Metrics to Track
+
+1. **Accuracy Metrics**:
+   - Faithfulness > 0.8 (good)
+   - Answer Relevancy > 0.7 (acceptable)
+   - Context Precision > 0.6 (minimum)
+
+2. **Performance Metrics**:
+   - Retrieval latency < 2s
+   - Token usage per query
+   - Chunks retrieved vs relevant
+
+3. **Cost Metrics**:
+   - Cost per 1000 queries
+   - Storage costs per GB
+   - Total monthly cost projection
+
+Save these evaluation results for the final workshop report.
+EOF < /dev/null

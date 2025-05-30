@@ -1,7 +1,94 @@
 #+TITLE: Module 1: RAG Basics
 #+AUTHOR: Jason Walsh
 #+EMAIL: j@wal.sh
+#+DATE: 2025-05-30
 #+PROPERTY: header-args:python :results output :session rag-basics
+#+PROPERTY: header-args:shell :results output
+
+* Workshop Overview & Weekend Testing Plan
+
+This notebook provides a comprehensive guide for building RAG applications, from local testing to full AWS integration.
+
+** Weekend Testing Checklist
+
+- [ ] AWS credentials working (source .env)
+- [ ] Bedrock models accessible
+- [ ] S3 bucket creation successful
+- [ ] OpenSearch collection setup
+- [ ] 4 Knowledge Bases created (different chunking strategies)
+- [ ] Retrieval working from each KB
+- [ ] Cost tracking accurate
+- [ ] Local RAG demo working (no AWS required)
+
+* Workshop Requirements - Lab 1: Build your RAG Application
+
+** Learning Objectives
+- Understand RAG fundamentals and chunking strategies
+- Create vector stores and knowledge bases
+- Implement different chunking methods (Fixed, Semantic, Hierarchical)
+- Compare performance and costs of different approaches
+
+** Prerequisites Validation
+
+#+BEGIN_SRC shell :dir /Users/jasonwalsh/projects/jwalsh/aws-genai-rag-workshop-2025
+# Source credentials
+source .env
+
+# 1. Verify AWS credentials are configured
+aws sts get-caller-identity
+
+# 2. Check Bedrock model access
+aws bedrock list-foundation-models --region us-west-2 \
+  --query "modelSummaries[?contains(modelId, 'titan-embed') || contains(modelId, 'claude')].modelId" \
+  --output table
+
+# 3. Verify required IAM permissions
+aws iam get-role --role-name BedrockExecutionRoleForKB 2>/dev/null || echo "Role not found - needs creation"
+
+# 4. Check S3 bucket naming (will be created later)
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+echo "S3 bucket will be: ${ACCOUNT_ID}-us-west-2-advanced-rag-workshop"
+#+END_SRC
+
+** Resource Setup Commands
+
+#+BEGIN_SRC shell :dir /Users/jasonwalsh/projects/jwalsh/aws-genai-rag-workshop-2025
+# Source environment and setup script
+source .env
+source live/debug.org  # Contains get_resource_names function
+
+# Get resource names
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+REGION_NAME="us-west-2"
+
+# Set all resource names
+S3_BUCKET_NAME="${ACCOUNT_ID}-${REGION_NAME}-advanced-rag-workshop"
+KNOWLEDGE_BASE_NAME_AOSS="advanced-rag-workshop-knowledgebase-aoss"
+OSS_VECTOR_STORE_NAME="advancedrag"
+OSS_INDEX_NAME="ws-index-"
+
+# Create S3 bucket
+aws s3 mb s3://${S3_BUCKET_NAME} --region ${REGION_NAME} || echo "Bucket already exists"
+
+# Download 10-K reports
+mkdir -p /tmp/10k-reports
+cd /tmp/10k-reports
+
+# Download Amazon 10-K reports
+wget -q "https://d18rn0p25nwr6d.cloudfront.net/CIK-0001018724/e42c2068-bad5-4ab6-ae57-36ff8b2aeffd.pdf" -O Amazon_10K_2023.pdf
+wget -q "https://d18rn0p25nwr6d.cloudfront.net/CIK-0001018724/c7c14359-36fa-40c3-b3ca-5bf7f3fa0b96.pdf" -O Amazon_10K_2022.pdf
+wget -q "https://d18rn0p25nwr6d.cloudfront.net/CIK-0001018724/d2fde7ee-05f7-419d-9ce8-186de4c96e25.pdf" -O Amazon_10K_2021.pdf
+
+# Create metadata files
+echo '{"company": "Amazon", "year": "2023", "document_type": "10-K"}' > Amazon_10K_2023.pdf.metadata.json
+echo '{"company": "Amazon", "year": "2022", "document_type": "10-K"}' > Amazon_10K_2022.pdf.metadata.json
+echo '{"company": "Amazon", "year": "2021", "document_type": "10-K"}' > Amazon_10K_2021.pdf.metadata.json
+
+# Upload to S3
+aws s3 sync . s3://${S3_BUCKET_NAME}/10k-reports/
+
+cd -
+#+END_SRC
 
 * Introduction to RAG
 
@@ -15,459 +102,69 @@ Retrieval Augmented Generation (RAG) combines the power of large language models
 4. *Retrieval*: Finding relevant context for user queries
 5. *Generation*: Using LLMs to synthesize responses
 
-* Quick Setup
+* Quick Setup & Environment Check
 
-** 1. Verify Environment
 #+BEGIN_SRC shell
-# Check environment is activated (direnv should handle this)
+# Check environment is activated
 which python
 python --version
 
 # Verify AWS CLI
 aws --version
+
+# Check if workshop modules are available
+python -c "import sys; sys.path.append('..'); from src.rag.pipeline import RAGPipeline; print('✓ RAG modules available')"
 #+END_SRC
 
-** 2. Start LocalStack (Optional)
-#+BEGIN_SRC shell
-# This starts LocalStack and creates all AWS resources automatically
-make localstack-up
-#+END_SRC
+* Level 0 Test: Basic Embeddings (No AWS Required)
 
-Note: LocalStack is only needed for AWS service integration examples. The basic RAG examples work without it.
-
-* Sample Data Download
-
-For our RAG pipeline demonstrations, we'll use Roget's Thesaurus as sample data.
-
-** Download Using Make
-
-#+BEGIN_SRC shell
-# From the project root directory, run:
-make download-data
-
-# Or download just the thesaurus:
-make data/rogets_thesaurus.pdf
-#+END_SRC
-
-The PDF will be downloaded to =data/rogets_thesaurus.pdf= in the project root.
-
-For processing PDFs in our RAG pipeline, we'll use the PDF extractor from the project:
+Let's start with a simple test that requires no AWS services:
 
 #+BEGIN_SRC python
 import sys
 sys.path.append('..')  # Add parent directory to path
 
-from src.utils.pdf_extractor import PDFExtractor
-import os
-
-# Check if our sample PDF exists
-pdf_path = "../data/rogets_thesaurus.pdf"
-
-if os.path.exists(pdf_path):
-    try:
-        extractor = PDFExtractor()
-        # Extract first 5 pages as a sample
-        text = extractor.extract_text(pdf_path, max_pages=5)
-        print(f"Extracted {len(text)} characters from first 5 pages")
-        print("\nFirst 500 characters:")
-        print(text[:500])
-    except Exception as e:
-        print(f"Error extracting PDF: {e}")
-else:
-    print(f"Sample PDF not found at {pdf_path}")
-    print("Run 'make download-data' from the project root to download it.")
-#+END_SRC
-
-* Understanding RAG Components
-
-** Document Chunking Demo
-
-Chunking splits documents into manageable pieces for processing:
-
-#+BEGIN_SRC python
-from typing import List, Dict, Any
-
-# Quick demo of chunking
-from src.rag.chunking import SimpleChunker
-
-sample_text = "RAG combines retrieval with generation. " * 20
-chunker = SimpleChunker(chunk_size=100, overlap=20)
-chunks = chunker.chunk_text(sample_text)
-
-print(f"Text length: {len(sample_text)}")
-print(f"Created {len(chunks)} chunks")
-print(f"First chunk: {chunks[0]['text'][:50]}...")
-print(f"Overlap demo: chunk 1 ends with: ...{chunks[0]['text'][-20:]}")
-print(f"          chunk 2 starts with: {chunks[1]['text'][:20]}...")
-#+END_SRC
-
-** Embeddings with Bedrock
-
-Generate embeddings using Amazon Titan:
-
-#+BEGIN_SRC shell
-# Create a sample embedding
-echo '{"inputText": "What is machine learning?"}' > /tmp/embedding_request.json
-
-aws bedrock-runtime invoke-model \
-    --model-id amazon.titan-embed-text-v1 \
-    --body file:///tmp/embedding_request.json \
-    --cli-binary-format raw-in-base64-out \
-    /tmp/embedding_response.json
-
-# View embedding dimension
-jq '.embedding | length' /tmp/embedding_response.json
-
-# Show first 5 values
-jq '.embedding[:5]' /tmp/embedding_response.json
-#+END_SRC
-
-** Compare with Local Embeddings
-
-#+BEGIN_SRC python
 from src.rag.embeddings import EmbeddingGenerator
+from src.rag.vector_store import FAISSVectorStore
 import numpy as np
 
-# Create embedding generator
-generator = EmbeddingGenerator()
-
-# Generate embeddings for sample texts
-texts = [
-    "What is machine learning?",
-    "Machine learning is a subset of artificial intelligence.",
-    "The weather is nice today."
-]
-
-embeddings = generator.generate(texts)
-print(f"Embedding dimension: {generator.dimension}")
-print(f"Generated {len(embeddings)} embeddings")
-
-# Calculate similarities
-for i in range(len(texts)):
-    for j in range(i+1, len(texts)):
-        # Calculate cosine similarity
-        dot_product = np.dot(embeddings[i], embeddings[j])
-        norm1 = np.linalg.norm(embeddings[i])
-        norm2 = np.linalg.norm(embeddings[j])
-        sim = dot_product / (norm1 * norm2)
-        
-        print(f"\nSimilarity between:")
-        print(f"  '{texts[i]}'")
-        print(f"  '{texts[j]}'")
-        print(f"  Score: {sim:.4f}")
-#+END_SRC
-
-* Vector Storage with FAISS
-
-Let's use the project's vector store implementation:
-
-#+BEGIN_SRC python
-from src.rag.vector_store import FAISSVectorStore
-from src.rag.embeddings import EmbeddingGenerator
-
-# Create vector store
+# Create local components
 generator = EmbeddingGenerator()
 vector_store = FAISSVectorStore(dimension=generator.dimension)
 
-# Add some documents
+# Test documents
 documents = [
-    "Python is a high-level programming language.",
-    "Machine learning enables computers to learn from data.",
-    "Natural language processing deals with text analysis.",
-    "Deep learning uses neural networks with multiple layers.",
-    "AWS provides cloud computing services."
+    "RAG combines retrieval with generation for better AI responses.",
+    "Vector databases store embeddings for similarity search.",
+    "AWS Bedrock provides managed foundation models.",
+    "Knowledge bases enable semantic search over documents."
 ]
 
+# Generate embeddings
 embeddings = generator.generate(documents)
 vector_store.add(embeddings, documents)
 
-# Search for similar documents
-query = "What is artificial intelligence?"
-query_embedding = generator.generate(query)
-
-results = vector_store.search(query_embedding[0], k=3)
+# Test retrieval
+query = "How does RAG work?"
+query_embedding = generator.generate(query)[0]
+results = vector_store.search(query_embedding, k=2)
 
 print(f"Query: {query}\n")
-print("Top 3 similar documents:")
-for result in results:
-    print(f"\n- Document: {result['document']}")
-    print(f"  Distance: {result['distance']:.4f}")
+for i, result in enumerate(results):
+    print(f"{i+1}. {result['document']}")
+    print(f"   Distance: {result['distance']:.4f}\n")
 #+END_SRC
 
-* Building a Simple RAG Pipeline
+* Level 1 Test: Simple RAG Pipeline (No AWS Required)
 
-You can run a complete RAG pipeline demo using:
-#+BEGIN_SRC shell
-make run-rag-pipeline
-#+END_SRC
+** Option A: Philosophical RAG Demo
 
-Or build your own pipeline using the project's modules:
-
-#+BEGIN_SRC python
-from src.rag.pipeline import RAGPipeline, RAGConfig
-from src.rag.chunking import SimpleChunker
-from src.rag.embeddings import EmbeddingGenerator
-from src.rag.vector_store import FAISSVectorStore
-
-# Create a simple RAG demonstration
-# First, let's use the individual components
-chunker = SimpleChunker(chunk_size=512, overlap=50)
-embedder = EmbeddingGenerator()
-vector_store = FAISSVectorStore(dimension=embedder.dimension)
-
-# Add some documents
-documents = [
-    """Amazon Web Services (AWS) is a subsidiary of Amazon that provides 
-    on-demand cloud computing platforms and APIs to individuals, companies, 
-    and governments, on a metered pay-as-you-go basis.""",
-    
-    """Machine learning is a subset of artificial intelligence that enables 
-    systems to learn and improve from experience without being explicitly 
-    programmed. It focuses on developing algorithms that can access data 
-    and use it to learn for themselves.""",
-    
-    """Retrieval Augmented Generation (RAG) is a technique that combines 
-    large language models with information retrieval systems. It allows 
-    models to access external knowledge bases to provide more accurate 
-    and up-to-date responses."""
-]
-
-# Process each document
-for doc_id, doc in enumerate(documents):
-    # Chunk the document
-    chunks = chunker.chunk_text(doc)
-    chunk_texts = [chunk['text'] for chunk in chunks]
-    
-    # Generate embeddings
-    embeddings = embedder.generate(chunk_texts)
-    
-    # Add to vector store with metadata
-    metadata = [{'doc_id': doc_id, 'chunk_index': i} for i in range(len(chunks))]
-    vector_store.add(embeddings, chunk_texts, metadata)
-
-# Test queries
-queries = [
-    "What is AWS?",
-    "Explain machine learning",
-    "How does RAG work?"
-]
-
-for query in queries:
-    print("="*50)
-    print(f"Query: {query}\n")
-    
-    # Generate query embedding
-    query_embedding = embedder.generate(query)[0]
-    
-    # Search for similar documents
-    results = vector_store.search(query_embedding, k=2)
-    
-    print("Retrieved contexts:")
-    for i, result in enumerate(results):
-        print(f"\n{i+1}. {result['document'][:100]}...")
-        print(f"   (Distance: {result['distance']:.4f})")
-#+END_SRC
-
-* Exercises
-
-** Exercise 1: Implement Semantic Chunking
-Modify the chunker to split on sentence boundaries instead of fixed character counts.
-
-** Exercise 2: Add Metadata Filtering
-Enhance the vector store to filter results based on metadata before returning.
-
-** Exercise 3: Integrate with AWS Bedrock
-Replace the local embedding model with Amazon Bedrock's Titan Embeddings.
-
-* AWS Integration with LocalStack and Bedrock
-
-Let's demonstrate AWS integration using the project's utilities:
-
-#+BEGIN_SRC python
-from src.utils.aws_client import get_bedrock_runtime_client, get_s3_client
-from src.rag.embeddings import EmbeddingGenerator
-from src.rag.chunking import SimpleChunker
-from src.rag.vector_store import FAISSVectorStore
-import json
-import os
-
-# Set up for LocalStack
-os.environ['LOCALSTACK_ENDPOINT'] = 'http://localhost:4566'
-
-# Get AWS clients
-bedrock = get_bedrock_runtime_client()
-s3 = get_s3_client()
-
-# Initialize components
-chunker = SimpleChunker(chunk_size=512, overlap=50)
-embedder = EmbeddingGenerator()
-vector_store = FAISSVectorStore(dimension=embedder.dimension)
-
-# Cost tracking
-costs = {
-    'embedding_requests': 0,
-    'llm_requests': 0,
-    'storage_operations': 0
-}
-
-def generate_bedrock_embeddings(texts):
-    """Generate embeddings using Amazon Bedrock Titan."""
-    embeddings = []
-    
-    for text in texts:
-        try:
-            response = bedrock.invoke_model(
-                modelId="amazon.titan-embed-text-v1",
-                body=json.dumps({"inputText": text})
-            )
-            
-            result = json.loads(response['body'].read())
-            embeddings.append(result['embedding'])
-            
-            # Track costs (Titan Embeddings: $0.0001 per 1K tokens)
-            estimated_tokens = len(text.split()) * 1.3  # Rough estimation
-            costs['embedding_requests'] += (estimated_tokens / 1000) * 0.0001
-            
-        except Exception as e:
-            print(f"Bedrock embedding failed, falling back to local: {e}")
-            # Fallback to local embeddings
-            local_emb = embedder.generate([text])[0]
-            embeddings.append(local_emb.tolist())
-    
-    return embeddings
-
-# Test with sample text
-sample_text = "Amazon Web Services provides cloud computing services."
-
-# Test embedding generation
-embeddings = generate_bedrock_embeddings([sample_text])
-print(f"Generated {len(embeddings)} embeddings")
-if embeddings:
-    print(f"Embedding dimension: {len(embeddings[0])}")
-
-# Test S3 storage
-bucket = "workshop-rag-documents"
-try:
-    s3.put_object(
-        Bucket=bucket,
-        Key="test-doc.txt",
-        Body=sample_text.encode()
-    )
-    costs['storage_operations'] += 1
-    print(f"Stored in: s3://{bucket}/test-doc.txt")
-except Exception as e:
-    print(f"S3 storage failed: {e}")
-
-# Calculate costs
-total_cost = (
-    costs['embedding_requests'] +  # Titan Embeddings
-    costs['llm_requests'] * 0.003 +  # Claude 3 Haiku estimate
-    costs['storage_operations'] * 0.0004  # S3 PUT requests
-)
-
-print(f"Estimated costs: ${total_cost:.6f}")
-#+END_SRC
-
-* Cost Analysis
-
-Understanding AWS costs is crucial for production RAG systems.
-
-#+BEGIN_SRC python
-from src.utils.cost_calculator import RAGCostEstimator
-
-# Create cost estimator
-estimator = RAGCostEstimator()
-
-# Example: Small business use case
-monthly_costs = estimator.estimate_monthly_cost(
-    documents_per_month=1000,    # 1K new documents
-    queries_per_month=10000,     # 10K queries
-    storage_gb=5.0               # 5GB storage
-)
-
-print("Monthly Cost Estimate:")
-print(f"  Embeddings: ${monthly_costs['embedding_cost']}")
-print(f"  Queries: ${monthly_costs['query_cost']}")
-print(f"  Storage: ${monthly_costs['storage_cost']}")
-print(f"  Total: ${monthly_costs['total_monthly_cost']}")
-
-# Medium enterprise example
-enterprise_costs = estimator.estimate_monthly_cost(
-    documents_per_month=10000,
-    queries_per_month=100000,
-    storage_gb=50.0
-)
-
-print("\nEnterprise Cost Estimate:")
-print(f"  Total: ${enterprise_costs['total_monthly_cost']}")
-#+END_SRC
-
-* Integration with Project Modules
-
-Let's demonstrate using the full project pipeline:
-
-#+BEGIN_SRC python
-from src.rag.pipeline import RAGPipeline, RAGConfig
-from src.utils.aws_client import get_bedrock_runtime_client
-import os
-
-# Use project's RAG configuration
-config = RAGConfig(
-    chunk_size=512,
-    chunk_overlap=50,
-    embedding_model="amazon.titan-embed-text-v1",
-    retrieval_k=5
-)
-
-# Create production pipeline
-try:
-    production_pipeline = RAGPipeline(config)
-    print("Production RAG pipeline created successfully")
-except Exception as e:
-    print(f"Pipeline creation error (expected with LocalStack): {e}")
-
-# Test document
-test_doc = """
-Retrieval Augmented Generation (RAG) combines large language models 
-with external knowledge bases. This approach enables more accurate, 
-up-to-date, and verifiable responses by retrieving relevant information 
-before generating answers.
-"""
-
-# Show integration capabilities
-print("\nProject Integration Features:")
-print("- Production RAG pipeline available")
-print("- AWS client utilities configured")
-print("- Cost calculation utilities")
-print("- Modular component architecture")
-print("- Guardrails and safety checks")
-print("- SQL agent capabilities")
-
-# List available modules
-print("\nAvailable src modules:")
-for module in ['rag', 'agents', 'guardrails', 'utils']:
-    print(f"- src.{module}")
-#+END_SRC
-
-* Level 1 Test: Philosophical RAG Demo
-
-This test demonstrates a Python-only RAG system using philosophical texts. It requires no AWS services or Docker, making it perfect for testing basic RAG functionality.
-
-** Download Philosophy Texts
-
-First, download the philosophical texts we'll use:
+This demonstrates RAG with philosophy texts - requires no AWS services:
 
 #+BEGIN_SRC shell
-# Download all philosophy texts (50MB+)
-make download-all
-
-# Or download individually:
+# Download philosophy texts if not already present
 make download-philosophy
 #+END_SRC
-
-** Run Philosophical RAG Test
-
-This test queries across Boethius, Kant, Wittgenstein, and Roget's Thesaurus:
 
 #+BEGIN_SRC python
 from src.demos.philosophical_rag import PhilosophicalRAG
@@ -479,81 +176,559 @@ rag = PhilosophicalRAG()
 print("Loading philosophical texts...")
 rag.load_texts()
 
-# Test query that should hit multiple sources
-query = "What is the relationship between language, meaning, and synonyms?"
-print(f"\nQuerying: {query}")
-rag.philosophical_query(query, n_results=6)
+# Test queries
+queries = [
+    "What is the relationship between language and meaning?",
+    "What is wisdom according to ancient philosophy?",
+    "How do we gain knowledge through experience?"
+]
 
-# Test incuriosity concept across texts
-query2 = "What is incuriosity, indifference, or the absence of interest?"
-print(f"\n\nQuerying: {query2}")
-rag.philosophical_query(query2, n_results=6)
-
-# Fun workshop demo: Ideal software developer characteristics
-print("\n\n🎯 AWS Workshop Special: What makes a great developer?")
-print("="*60)
-
-# Query for developer qualities using philosophical language
-dev_query = "What are the qualities of demonstration, proof, experimentation, curiosity, and practical wisdom in creating artifacts?"
-print(f"\nQuerying: {dev_query}")
-rag.philosophical_query(dev_query, n_results=6)
-
-# Engineering mindset
-eng_query = "What is the nature of methodical investigation, systematic inquiry, and the art of construction?"
-print(f"\n\nQuerying: {eng_query}")
-rag.philosophical_query(eng_query, n_results=6)
+for query in queries:
+    print(f"\n{'='*60}")
+    print(f"Query: {query}")
+    print('='*60)
+    rag.philosophical_query(query, n_results=3)
 #+END_SRC
 
-** Expected Results
+** Option B: Minimal RAG Validation (Download/Chunk/Pickle)
 
-You should see:
-1. **Cross-text connections**: Results from different philosophers
-2. **Thesaurus bridges**: Roget's entries connecting concepts
-3. **Relevance scores**: How well each chunk matches the query
+Simple RAG pipeline that can run anywhere (CI/CD friendly):
 
-This demonstrates RAG working with:
-- Dense philosophical language
-- Cross-era terminology
-- Concept mapping via thesaurus
-- No external dependencies (Python-only)
+#+BEGIN_SRC python
+import os
+import pickle
+import requests
+from pathlib import Path
+import numpy as np
+from typing import List, Dict
 
-** Fun Workshop Demo: Developer Characteristics via Philosophy
+# Create simple RAG components
+class SimpleRAG:
+    def __init__(self, cache_dir="./rag_cache"):
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(exist_ok=True)
+        
+    def download_sample_text(self) -> str:
+        """Download a sample text file"""
+        cache_file = self.cache_dir / "sample_text.txt"
+        
+        if cache_file.exists():
+            print("✓ Using cached text")
+            return cache_file.read_text()
+        
+        print("→ Downloading sample text...")
+        url = "https://www.gutenberg.org/files/74/74-0.txt"  # Tom Sawyer
+        response = requests.get(url)
+        text = response.text
+        
+        # Cache it
+        cache_file.write_text(text)
+        print("✓ Downloaded and cached")
+        return text
+    
+    def chunk_text(self, text: str, chunk_size: int = 500) -> List[str]:
+        """Simple chunking by character count"""
+        print(f"→ Chunking text (size={chunk_size})...")
+        chunks = []
+        words = text.split()
+        current_chunk = []
+        current_size = 0
+        
+        for word in words:
+            current_chunk.append(word)
+            current_size += len(word) + 1
+            
+            if current_size >= chunk_size:
+                chunks.append(' '.join(current_chunk))
+                current_chunk = []
+                current_size = 0
+        
+        if current_chunk:
+            chunks.append(' '.join(current_chunk))
+        
+        print(f"✓ Created {len(chunks)} chunks")
+        return chunks
+    
+    def create_embeddings(self, chunks: List[str]) -> np.ndarray:
+        """Create simple embeddings (hash-based for demo)"""
+        print("→ Creating embeddings...")
+        embeddings = []
+        
+        for chunk in chunks:
+            # Simple hash-based embedding (not ML, but deterministic)
+            words = chunk.lower().split()
+            embedding = np.zeros(128)  # 128-dim embedding
+            
+            for word in words:
+                # Simple hash to position
+                positions = [hash(word + str(i)) % 128 for i in range(3)]
+                for pos in positions:
+                    embedding[pos] += 1.0
+            
+            # Normalize
+            norm = np.linalg.norm(embedding)
+            if norm > 0:
+                embedding = embedding / norm
+                
+            embeddings.append(embedding)
+        
+        embeddings = np.array(embeddings)
+        print(f"✓ Created embeddings with shape {embeddings.shape}")
+        return embeddings
+    
+    def pickle_index(self, chunks: List[str], embeddings: np.ndarray) -> str:
+        """Pickle the RAG index"""
+        index_file = self.cache_dir / "rag_index.pkl"
+        
+        index = {
+            'chunks': chunks,
+            'embeddings': embeddings,
+            'metadata': {
+                'chunk_size': 500,
+                'num_chunks': len(chunks),
+                'embedding_dim': embeddings.shape[1]
+            }
+        }
+        
+        with open(index_file, 'wb') as f:
+            pickle.dump(index, f)
+        
+        print(f"✓ Pickled index to {index_file}")
+        return str(index_file)
+    
+    def search(self, query: str, index_file: str, top_k: int = 3) -> List[Dict]:
+        """Search the RAG index"""
+        # Load index
+        with open(index_file, 'rb') as f:
+            index = pickle.load(f)
+        
+        # Create query embedding
+        query_embedding = self.create_embeddings([query])[0]
+        
+        # Calculate similarities
+        similarities = np.dot(index['embeddings'], query_embedding)
+        
+        # Get top results
+        top_indices = np.argsort(similarities)[-top_k:][::-1]
+        
+        results = []
+        for idx in top_indices:
+            results.append({
+                'chunk': index['chunks'][idx][:200] + '...',
+                'score': similarities[idx],
+                'index': idx
+            })
+        
+        return results
 
-The developer characteristics queries show how RAG can find amusing connections between:
-- Roget's formal categorizations (demonstration, proof, experimentation)
-- Kant's systematic investigation and architectural thinking
-- Wittgenstein's focus on language and meaning construction
-- Boethius on wisdom and practical knowledge
+# Run the validation
+print("=== Level 1 RAG Validation ===\n")
 
-Perfect for showing workshop attendees that ideal developers should have:
-- **Curiosity** (vs. incuriosity/indifference from Roget entry 458)
-- **Perspicuity** (lucidity, clearness, intelligibility from Roget entry 570)
-- **Systematic thinking** (Kant's "articulation or organization")
-- **Experimental mindset** (Kant's empirical experimentation)
-- **Focus on demonstration** (proof, conclusiveness, apodixis from Roget)
-- **Practical wisdom** (Boethius on applied knowledge)
+rag = SimpleRAG()
 
-As Roget entry 570 states: "perspicuous, clear, lucid, intelligible" - exactly what we want in code, documentation, and literate programming notebooks!
+# Step 1: Download
+text = rag.download_sample_text()
+print(f"   Text length: {len(text)} chars")
+
+# Step 2: Chunk
+chunks = rag.chunk_text(text)
+
+# Step 3: Create embeddings
+embeddings = rag.create_embeddings(chunks)
+
+# Step 4: Pickle
+index_file = rag.pickle_index(chunks, embeddings)
+
+# Step 5: Test search
+print("\n→ Testing search...")
+test_queries = [
+    "What did Tom Sawyer do?",
+    "Who is Huckleberry Finn?",
+    "Tell me about the fence painting."
+]
+
+for query in test_queries:
+    print(f"\nQuery: {query}")
+    results = rag.search(query, index_file, top_k=2)
+    for i, result in enumerate(results):
+        print(f"{i+1}. Score: {result['score']:.3f}")
+        print(f"   {result['chunk']}\n")
+
+print("✓ Level 1 validation complete!")
+#+END_SRC
+
+** Platform-Specific Notes (Unverified)
+
+*** GitHub Actions
+#+BEGIN_SRC yaml
+# .github/workflows/rag-validation.yml
+name: RAG Level 1 Validation
+
+on: [push, pull_request]
+
+jobs:
+  validate-rag:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install numpy requests
+    
+    - name: Run Level 1 RAG validation
+      run: |
+        python -c "
+        # Copy the SimpleRAG code here
+        # Or create scripts/validate_rag_level1.py
+        "
+    
+    - name: Upload RAG artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: rag-index
+        path: rag_cache/
+#+END_SRC
+
+*** GitHub Codespaces
+#+BEGIN_SRC json
+// .devcontainer/devcontainer.json
+{
+  "name": "RAG Workshop",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/aws-cli:1": {}
+  },
+  "postCreateCommand": "pip install -r requirements.txt && make download-philosophy",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-toolsai.jupyter"
+      ]
+    }
+  }
+}
+#+END_SRC
+
+*** Jupyter on AWS (SageMaker/EMR)
+#+BEGIN_SRC python
+# First cell in Jupyter notebook
+!pip install numpy requests faiss-cpu
+
+# Run validation in notebook
+import sys
+sys.path.append('/home/sagemaker-user')  # Adjust for your environment
+
+# Then run the SimpleRAG code above
+#+END_SRC
+
+* AWS Integration: Bedrock Embeddings
+
+Now let's test AWS Bedrock integration:
+
+#+BEGIN_SRC shell
+# Test Bedrock embedding
+echo '{"inputText": "What is machine learning?"}' > /tmp/embedding_request.json
+
+aws bedrock-runtime invoke-model \
+    --model-id amazon.titan-embed-text-v1 \
+    --body file:///tmp/embedding_request.json \
+    --cli-binary-format raw-in-base64-out \
+    /tmp/embedding_response.json \
+    --region us-west-2
+
+# Check embedding dimension
+jq '.embedding | length' /tmp/embedding_response.json
+#+END_SRC
+
+* Creating Knowledge Bases with Different Chunking Strategies
+
+** 1. Create OpenSearch Collection
+
+#+BEGIN_SRC shell
+# Create OpenSearch policies
+aws opensearchserverless create-security-policy \
+  --name "${OSS_VECTOR_STORE_NAME}-encryption" \
+  --type encryption \
+  --policy "{\"Rules\":[{\"ResourceType\":\"collection\",\"Resource\":[\"collection/${OSS_VECTOR_STORE_NAME}\"]}],\"AWSOwnedKey\":true}" \
+  --region us-west-2
+
+aws opensearchserverless create-security-policy \
+  --name "${OSS_VECTOR_STORE_NAME}-network" \
+  --type network \
+  --policy "[{\"Rules\":[{\"ResourceType\":\"collection\",\"Resource\":[\"collection/${OSS_VECTOR_STORE_NAME}\"]}],\"AllowFromPublic\":true}]" \
+  --region us-west-2
+
+# Create collection
+aws opensearchserverless create-collection \
+  --name ${OSS_VECTOR_STORE_NAME} \
+  --type VECTORSEARCH \
+  --region us-west-2
+#+END_SRC
+
+** 2. Create IAM Role for Bedrock
+
+#+BEGIN_SRC shell
+# Create trust policy
+cat > /tmp/bedrock-trust-policy.json << EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "bedrock.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+
+# Create role (if not exists)
+aws iam create-role \
+  --role-name BedrockExecutionRoleForKB \
+  --assume-role-policy-document file:///tmp/bedrock-trust-policy.json \
+  2>/dev/null || echo "Role already exists"
+
+# Attach policies
+aws iam attach-role-policy \
+  --role-name BedrockExecutionRoleForKB \
+  --policy-arn arn:aws:iam::aws:policy/AmazonBedrockFullAccess
+
+aws iam attach-role-policy \
+  --role-name BedrockExecutionRoleForKB \
+  --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess
+#+END_SRC
+
+** 3. Create Knowledge Bases
+
+We'll create 4 KBs with different chunking strategies:
+
+#+BEGIN_SRC python
+# This would normally use the Python SDK, but for validation we'll use AWS CLI
+chunking_configs = [
+    {
+        "name": "fixed-chunking",
+        "strategy": "FIXED_SIZE",
+        "config": {"maxTokens": 300, "overlapPercentage": 10}
+    },
+    {
+        "name": "semantic-chunking", 
+        "strategy": "SEMANTIC",
+        "config": {"maxTokens": 300, "bufferSize": 0, "breakpointPercentileThreshold": 95}
+    },
+    {
+        "name": "hierarchical-chunking",
+        "strategy": "HIERARCHICAL",
+        "config": {"levelConfigurations": [{"maxTokens": 1500}, {"maxTokens": 300}], "overlapTokens": 60}
+    },
+    {
+        "name": "no-chunking",
+        "strategy": "NONE",
+        "config": {}
+    }
+]
+
+print("Knowledge Base configurations prepared:")
+for config in chunking_configs:
+    print(f"- {config['name']}: {config['strategy']}")
+#+END_SRC
+
+* Testing Retrieval
+
+After KBs are created, test retrieval:
+
+#+BEGIN_SRC shell
+# Test retrieval from a Knowledge Base
+KB_ID="<your-kb-id>"  # Replace with actual KB ID
+
+aws bedrock-agent-runtime retrieve \
+  --knowledge-base-id ${KB_ID} \
+  --retrieval-query '{"text": "What was Amazon revenue in 2023?"}' \
+  --retrieval-configuration '{"vectorSearchConfiguration": {"numberOfResults": 3}}' \
+  --region us-west-2 \
+  --output json | jq '.retrievalResults[0].content.text'
+#+END_SRC
+
+* Cost Analysis
+
+#+BEGIN_SRC python
+from src.utils.cost_calculator import RAGCostEstimator
+
+# Create cost estimator
+estimator = RAGCostEstimator()
+
+# Estimate costs for the workshop
+workshop_costs = estimator.estimate_monthly_cost(
+    documents_per_month=10,      # 10-K reports
+    queries_per_month=100,       # Testing queries
+    storage_gb=0.1               # ~100MB of PDFs
+)
+
+print("Workshop Cost Estimate:")
+print(f"  Embeddings: ${workshop_costs['embedding_cost']:.2f}")
+print(f"  Queries: ${workshop_costs['query_cost']:.2f}")
+print(f"  Storage: ${workshop_costs['storage_cost']:.2f}")
+print(f"  Total: ${workshop_costs['total_monthly_cost']:.2f}")
+#+END_SRC
+
+* Lab 1 Validation Checklist
+
+Complete these validation steps to ensure your RAG system is properly configured:
+
+** Resource Creation Validation
+
+#+BEGIN_SRC shell
+# 1. Verify S3 bucket exists with documents
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+S3_BUCKET="${ACCOUNT_ID}-us-west-2-advanced-rag-workshop"
+
+aws s3 ls s3://${S3_BUCKET}/10k-reports/ | head -5
+
+# 2. Check OpenSearch collection status
+aws opensearchserverless list-collections \
+  --query "collectionSummaries[?contains(name, 'advancedrag')]"
+
+# 3. List all Knowledge Bases created
+aws bedrock-agent list-knowledge-bases \
+  --query "knowledgeBaseSummaries[*].{id:knowledgeBaseId,name:name,status:status}" \
+  --output table
+
+# 4. Test retrieval from each Knowledge Base
+KB_ID="<your-kb-id>"  # Replace with actual ID
+aws bedrock-agent-runtime retrieve \
+  --knowledge-base-id ${KB_ID} \
+  --retrieval-query '{"text": "What was Amazon revenue in 2023?"}' \
+  --query "retrievalResults[:2].content.text" \
+  --output text
+#+END_SRC
+
+** Performance Metrics to Capture
+
+1. **Ingestion Metrics**:
+   - Time to ingest documents
+   - Number of chunks created per strategy
+   - Token count for embeddings
+
+2. **Retrieval Quality**:
+   - Relevance scores for test queries
+   - Response latency
+   - Chunk overlap analysis
+
+3. **Cost Analysis**:
+   - Embedding generation costs
+   - Storage costs (OpenSearch)
+   - Query costs
+
+** Expected Outputs
+
+After completing Lab 1, you should have:
+
+- [ ] 4 Knowledge Base IDs saved to configuration
+- [ ] Cost comparison table showing token usage per chunking strategy
+- [ ] Sample retrieval results from each KB
+- [ ] Performance metrics for each chunking approach
+
+Save these for comparison in Lab 4 (FloTorch evaluation).
+
+* Weekend Testing Script
+
+Save this script to quickly validate the entire setup:
+
+#+BEGIN_SRC shell :tangle weekend-test.sh
+#!/bin/bash
+# Weekend Workshop Validation Script
+
+echo "=== AWS GenAI RAG Workshop Validation ==="
+echo "Date: $(date)"
+echo ""
+
+# Source credentials
+source .env
+
+# Check AWS access
+echo "1. Checking AWS credentials..."
+aws sts get-caller-identity || { echo "❌ AWS credentials not working"; exit 1; }
+echo "✅ AWS credentials OK"
+
+# Check Bedrock models
+echo -e "\n2. Checking Bedrock model access..."
+MODEL_COUNT=$(aws bedrock list-foundation-models --region us-west-2 --query 'length(modelSummaries)' --output text)
+echo "✅ Found $MODEL_COUNT Bedrock models"
+
+# Check S3 bucket
+echo -e "\n3. Checking S3 bucket..."
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+S3_BUCKET="${ACCOUNT_ID}-us-west-2-advanced-rag-workshop"
+aws s3 ls s3://${S3_BUCKET}/ && echo "✅ S3 bucket exists" || echo "❌ S3 bucket not found"
+
+# Check OpenSearch
+echo -e "\n4. Checking OpenSearch collections..."
+aws opensearchserverless list-collections --query 'length(collectionSummaries)' --output text
+
+# Check Knowledge Bases
+echo -e "\n5. Checking Knowledge Bases..."
+KB_COUNT=$(aws bedrock-agent list-knowledge-bases --query 'length(knowledgeBaseSummaries)' --output text)
+echo "Found $KB_COUNT Knowledge Bases"
+
+# Test local RAG
+echo -e "\n6. Testing local RAG (no AWS)..."
+python -c "
+import sys
+sys.path.append('..')
+from src.rag.embeddings import EmbeddingGenerator
+print('✅ Local RAG components working')
+"
+
+echo -e "\n=== Validation Complete ==="
+#+END_SRC
+
+* Troubleshooting Guide
+
+** Common Issues and Solutions
+
+1. **AWS Credentials Error**
+   #+BEGIN_SRC shell
+   # Make sure .env is sourced
+   source .env
+   aws sts get-caller-identity
+   #+END_SRC
+
+2. **Bedrock Model Access Denied**
+   - Check region is us-west-2
+   - Verify models are enabled in Bedrock console
+
+3. **S3 Bucket Name Conflict**
+   #+BEGIN_SRC shell
+   # Add timestamp to make unique
+   S3_BUCKET="${ACCOUNT_ID}-us-west-2-rag-workshop-$(date +%s)"
+   #+END_SRC
+
+4. **OpenSearch Collection Failed**
+   - Check IAM permissions
+   - Verify network policies allow public access
+
+5. **Knowledge Base Creation Failed**
+   - Ensure OpenSearch collection is ACTIVE
+   - Check IAM role has correct trust policy
 
 * Summary
 
-In this module, we've built a comprehensive RAG system that includes:
+This consolidated notebook provides:
 
-1. **Core Components**: Document chunking, embedding generation, vector storage
-2. **AWS Integration**: LocalStack testing and Bedrock integration
-3. **Cost Analysis**: Detailed cost estimation for production use
-4. **Project Integration**: Connection with existing project modules
-5. **Production Ready**: Error handling, configuration, and monitoring
+1. **Complete Workshop Setup**: All resources needed for Lab 1
+2. **Multiple Testing Levels**: From local-only to full AWS integration
+3. **Validation Commands**: Easy verification of each component
+4. **Cost Tracking**: Built-in cost estimation
+5. **Troubleshooting**: Common issues and solutions
 
-**Key Learning Outcomes:**
-- Understanding RAG fundamentals and implementation
-- AWS service integration (Bedrock, S3, DynamoDB)
-- Cost optimization strategies
-- Production deployment considerations
-
-**Cost Estimates for Common Use Cases:**
-- Small business (1K docs, 10K queries/month): ~$3.68/month
-- Medium enterprise (10K docs, 100K queries/month): ~$36.80/month
-- Large scale (100K docs, 1M queries/month): ~$368/month
+Use the weekend testing script to quickly validate your entire setup.
 
 Next module: [[file:02_advanced_rag.org][Advanced RAG Techniques]]

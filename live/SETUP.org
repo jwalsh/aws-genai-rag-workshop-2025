@@ -1,0 +1,8 @@
+https://us-west-2.console.aws.amazon.com/sagemaker/home?region=us-west-2#/studio-landing
+
+- this all needs to be part of the core setup 
+
+
+- questios about the ordering of the index creation 
+- something about the fixed chunk index
+- what is the correct flow through this sapplication 

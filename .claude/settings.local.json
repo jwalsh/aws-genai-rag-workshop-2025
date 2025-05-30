@@ -12,7 +12,8 @@
       "Bash(sed:*)",
       "Bash(ls:*)",
       "Bash(make lint)",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "Bash(gh issue view:*)"
     ],
     "deny": []
   }

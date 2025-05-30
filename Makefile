@@ -176,6 +176,17 @@ run-philosophical-rag: download-philosophy ## Run the philosophical RAG demo
 calculate-costs: ## Calculate workshop costs
 	$(UV) run python -m src.utils.cost_calculator
 
+validate-level1: ## Run Level 1 RAG validation (no AWS required)
+	@echo "Running Level 1 RAG validation..."
+	$(UV) run python scripts/validate_rag_level1.py
+
+validate-workshop: ## Run full workshop validation script
+	@echo "Running workshop validation..."
+	@bash scripts/validate-workshop.sh
+
+validate-ci: ## Run CI-friendly validation
+	$(UV) run python scripts/validate_rag_level1.py --ci
+
 ##@ Documentation
 
 presentation.pdf: presentation.org ## Generate presentation PDF from org file

@@ -3,6 +3,74 @@
 #+EMAIL: j@wal.sh
 #+PROPERTY: header-args:python :results output :mkdirp yes
 
+* Workshop Requirements - Lab 3: Text to SQL Agent
+
+** Learning Objectives
+- Convert natural language to SQL queries
+- Build agentic workflows with LangChain
+- Work with structured data in AWS
+- Implement retry logic and error handling
+
+** Prerequisites Validation
+
+#+BEGIN_SRC shell
+# 1. Check if Athena is available
+aws athena list-work-groups --query "WorkGroups[?Name=='primary']" --output table
+
+# 2. Verify Glue catalog access
+aws glue get-databases --catalog-id $(aws sts get-caller-identity --query Account --output text) \
+  --query "DatabaseList[*].Name" --output text
+
+# 3. Check S3 bucket for CSV data
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+S3_BUCKET="${ACCOUNT_ID}-us-west-2-advanced-rag-workshop"
+aws s3 ls s3://${S3_BUCKET}/sql-data/ 2>/dev/null || echo "SQL data folder not found"
+
+# 4. Verify Bedrock model access for SQL generation
+aws bedrock-runtime invoke-model \
+  --model-id anthropic.claude-3-haiku-20240307-v1:0 \
+  --body '{"anthropic_version": "bedrock-2023-05-31", "max_tokens": 10, "messages": [{"role": "user", "content": "SELECT 1"}]}' \
+  --cli-binary-format raw-in-base64-out \
+  /tmp/test-sql.json 2>/dev/null && echo "Bedrock access confirmed"
+#+END_SRC
+
+** Expected Components
+
+1. **Athena Database**: Store structured data for querying
+2. **Glue Tables**: Define schema for CSV/Parquet data
+3. **SQL Agent**: Natural language to SQL converter
+4. **Error Handling**: Retry logic for failed queries
+
+** Validation Commands
+
+#+BEGIN_SRC shell
+# Create test database and table
+aws athena start-query-execution \
+  --query-string "CREATE DATABASE IF NOT EXISTS workshop_db" \
+  --work-group primary \
+  --result-configuration "OutputLocation=s3://${S3_BUCKET}/athena-results/"
+
+# List databases
+aws athena list-databases \
+  --catalog-name AwsDataCatalog \
+  --query "DatabaseList[*].Name" \
+  --output table
+
+# Test simple query execution
+QUERY_ID=$(aws athena start-query-execution \
+  --query-string "SELECT 1 as test" \
+  --work-group primary \
+  --result-configuration "OutputLocation=s3://${S3_BUCKET}/athena-results/" \
+  --query "QueryExecutionId" \
+  --output text)
+
+# Check query status
+aws athena get-query-execution \
+  --query-execution-id ${QUERY_ID} \
+  --query "QueryExecution.Status.State" \
+  --output text
+#+END_SRC
+
 * Introduction to Text-to-SQL
 
 Text-to-SQL bridges the gap between natural language and structured database queries, enabling non-technical users to access data using plain English questions. This module demonstrates building a robust NL2SQL system using AWS Bedrock and PostgreSQL.
@@ -917,6 +985,149 @@ Improve AWS integration:
 - Use AWS Secrets Manager for database credentials
 - Implement CloudWatch logging
 - Add X-Ray tracing for performance analysis
+
+* Lab 3 Validation Checklist
+
+Complete these validation steps to ensure your Text-to-SQL agent is working properly:
+
+** Database Setup Validation
+
+#+BEGIN_SRC shell
+# 1. Verify Athena database exists
+aws athena list-databases \
+  --catalog-name AwsDataCatalog \
+  --query "DatabaseList[?Name=='workshop_db']" \
+  --output json
+
+# 2. List tables in the database
+aws athena list-table-metadata \
+  --catalog-name AwsDataCatalog \
+  --database-name workshop_db \
+  --query "TableMetadataList[*].{Name:Name,Type:TableType}" \
+  --output table
+
+# 3. Check sample data in a table
+TABLE_NAME="sales_data"  # Replace with your table
+QUERY_ID=$(aws athena start-query-execution \
+  --query-string "SELECT * FROM workshop_db.${TABLE_NAME} LIMIT 5" \
+  --work-group primary \
+  --result-configuration "OutputLocation=s3://${S3_BUCKET}/athena-results/" \
+  --query "QueryExecutionId" \
+  --output text)
+
+# Wait and get results
+sleep 3
+aws athena get-query-results \
+  --query-execution-id ${QUERY_ID} \
+  --query "ResultSet.Rows[:2]" \
+  --output json
+#+END_SRC
+
+** SQL Agent Testing
+
+Test these natural language queries:
+
+#+BEGIN_SRC shell
+# Define test queries
+declare -a test_queries=(
+  "Show me total sales by region"
+  "What are the top 5 products by revenue?"
+  "Find customers who ordered more than 1000 dollars last month"
+  "Compare Q1 vs Q2 performance"
+  "Show average order value by customer segment"
+)
+
+# Test each query (manual process - agent implementation required)
+for query in "${test_queries[@]}"; do
+  echo "Testing: $query"
+  # Your agent would convert this to SQL
+  # For now, just echo what SQL might look like
+  echo "Expected SQL pattern for validation..."
+  echo "---"
+done
+#+END_SRC
+
+** Complex Query Validation
+
+#+BEGIN_SRC shell
+# Test JOIN query
+aws athena start-query-execution \
+  --query-string "
+    SELECT c.customer_name, SUM(o.order_total) as total_spent
+    FROM workshop_db.customers c
+    JOIN workshop_db.orders o ON c.customer_id = o.customer_id
+    GROUP BY c.customer_name
+    ORDER BY total_spent DESC
+    LIMIT 10
+  " \
+  --work-group primary \
+  --result-configuration "OutputLocation=s3://${S3_BUCKET}/athena-results/"
+
+# Test CTE (Common Table Expression)
+aws athena start-query-execution \
+  --query-string "
+    WITH monthly_sales AS (
+      SELECT DATE_TRUNC('month', order_date) as month,
+             SUM(order_total) as total_sales
+      FROM workshop_db.orders
+      GROUP BY 1
+    )
+    SELECT month, total_sales,
+           LAG(total_sales) OVER (ORDER BY month) as prev_month,
+           total_sales - LAG(total_sales) OVER (ORDER BY month) as growth
+    FROM monthly_sales
+  " \
+  --work-group primary \
+  --result-configuration "OutputLocation=s3://${S3_BUCKET}/athena-results/"
+#+END_SRC
+
+** Cost Tracking
+
+#+BEGIN_SRC shell
+# Get query execution details for cost analysis
+aws athena list-query-executions \
+  --work-group primary \
+  --max-results 10 \
+  --query "QueryExecutionIds[]" \
+  --output text | while read query_id; do
+    aws athena get-query-execution \
+      --query-execution-id $query_id \
+      --query "{
+        QueryId: QueryExecutionId,
+        State: Status.State,
+        DataScanned: Statistics.DataScannedInBytes,
+        ExecutionTime: Statistics.EngineExecutionTimeInMillis
+      }" \
+      --output json
+done
+#+END_SRC
+
+** Expected Outputs
+
+- [ ] Athena database with at least 3 tables
+- [ ] Successful execution of simple SELECT queries
+- [ ] Working JOIN queries across tables
+- [ ] Natural language queries converted to valid SQL
+- [ ] Query execution metrics (data scanned, execution time)
+
+** Performance Metrics
+
+Capture these for analysis:
+
+1. **Query Translation Accuracy**:
+   - Correct SQL generation rate
+   - Syntax error rate
+   - Semantic correctness
+
+2. **Execution Performance**:
+   - Average query execution time
+   - Data scanned per query
+   - Cost per query (Athena charges $5 per TB scanned)
+
+3. **Agent Reasoning**:
+   - Number of retry attempts
+   - Error recovery success rate
+   - Query optimization suggestions
 
 * Conclusion
 

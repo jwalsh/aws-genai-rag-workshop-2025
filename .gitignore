@@ -87,3 +87,9 @@ architecture.png
 data/*.pdf
 data/*.txt
 .repos/
+
+# Workshop presentations
+data/presentation/
+
+# RAG cache files
+rag_cache/

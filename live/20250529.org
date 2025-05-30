@@ -1,0 +1,167 @@
+* Thursday, 29 May 2025
+** 08:39 Setup and Registration
+
+- looks like new campus
+- original build somewhere around 2022? 
+
+** 08:56 Core setup
+
+- look at the core setup 
+- wifi 
+- parkings 
+
+** Agenda 
+
+- OpenSearch 
+- Glue 
+- Athena 
+
+Most of these should be standard for the core setup used by most of the core systems 
+
+- The genai systems seems to be related to the standard ai models. some of the 
+
+** 09:12 Components 
+
+- mostly just looking at the core models 
+- validate with some of the core setup
+- use the test chat / claude instance from the remote
+
+** Questions about AWS Offereings 
+
+- ask about privacy / vpc / fine tuning
+- data usage 
+- some questions about the use of rag vs. fine tuning 
+
+- noted the domain specific information 
+- considered some of the cost questoins about 
+
+** Tasks 
+
+- build out the work on the terrraform infrastrcture for the build 
+
+** Environment 
+
+- looking at using sagemenaker with notebooks as the baseline for the system 
+- some general backgroudn for 
+
+** Covering the standard workflow with bedrock 
+
+- vector embeddiings: 
+- look at the core offerings not with pg + vectors 
+
+** Indexing and Embdeeding Factors 
+
+- fixed size 
+- hierarchy 
+- semantic 
+- custom
+
+...apply this to the current test
+
+** Considerations 
+
+- look at the 
+
+** Strucured and Unstructured 
+
+- unsure of the workflow that is being advocated for trying to stitch together data fro msomething like structured data / apis.
+
+  - "train the agent" with the right tags
+
+
+- using RAG to agents ? 
+
+- unclear what the workflow for this should actually be 
+
+** Agents 
+
+- look at the agentic workflows since people seem to care about that 
+
+** Walking back to core use cases 
+
+- trying to show indexsing to nlp to sematic search 
+
+** Indexing 
+
+- review the indexing algorithm
+
+** prompt routers 
+
+- look at dspy and large model routing 
+- consider the 3.5 / 3.7 / 4 router and use in other models 
+- creae a mock router for the ollama calls 
+
+** feedback and questions 
+
+- finally got my Spark feedback 
+- complaints about the nature of search, indexing, classifying documents, etc 
+
+** Continued discussion about when people want to fine tune vs. rag 
+
+- list on the weeks on 
+chenking algorighm,
+chunk size 
+embedding 
+vectors 
+rebuilding 
+indexing 
+
+** Access 
+
+https://tinyurl.com/2025-05-29
+
+
+** Setup
+
+- confirm that the core notebooks are created 
+- look at that collections for opoen search 
+
+https://us-east-2.console.aws.amazon.com/sagemaker/home?region=us-east-2#/
+
+
+
+** Notebook 1.1 is the core setup 
+
+- sagementker studio 
+
+- openseearch service 
+
+** Structure and Clarification 
+
+- almost not concept 
+- the terminology shouldn't be used by anyone in practice 
+- the use caes and chunking and questions 
+- the top data being return is nonsense 
+- the core of the sessions don't work as expected 
+- looks like the sessions were barely tested 
+
+
+** Data srouces 
+#+begin_src shell 
+  pwd 
+  for U in  https://d18rn0p25nwr6d.cloudfront.net/CIK-0001018724/e42c2068-bad5-4ab6-ae57-36ff8b2aeffd.pdf         https://d18rn0p25nwr6d.cloudfront.net/CIK-0001018724/c7c14359-36fa-40c3-b3ca-5bf7f3fa0b96.pdf         https://d18rn0p25nwr6d.cloudfront.net/CIK-0001018724/d2fde7ee-05f7-419d-9ce8-186de4c96e25.pdf
+  do 
+      echo  $U
+  done 
+#+end_src
+
+#+RESULTS:
+| /Users/jasonwalsh/projects/jwalsh/aws-genai-rag-workshop-2025/live                            |
+| https://d18rn0p25nwr6d.cloudfront.net/CIK-0001018724/e42c2068-bad5-4ab6-ae57-36ff8b2aeffd.pdf |
+| https://d18rn0p25nwr6d.cloudfront.net/CIK-0001018724/c7c14359-36fa-40c3-b3ca-5bf7f3fa0b96.pdf |
+| https://d18rn0p25nwr6d.cloudfront.net/CIK-0001018724/d2fde7ee-05f7-419d-9ce8-186de4c96e25.pdf |
+
+
+** DSL and complexity 
+
+- a number of options are noted here for simplifying 
+
+** RAG evaluation 
+
+- take a look at returned values for the rag as generated 
+- confirm the statistical and llm based matrics
+  
+** Prompt Gallery 
+
+- not sure if this is that useful 
+- even the core data structure to the abstraction / dsl for prompts doens't really help 
