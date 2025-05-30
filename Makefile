@@ -88,24 +88,24 @@ test-level1: test-compatibility ## Run Level 1 tests (Python-only, all OSes)
 	@echo "Running Level 1 (Python-only) tests..."
 	$(UV) run pytest tests/test_rag.py -v -k "not aws and not docker"
 
-test-level2: ## Run Level 2 tests (with PostgreSQL)
-	@echo "Testing Level 2 (with PostgreSQL)..."
+test-level2: ## Run Level 2 tests (with real AWS)
+	@echo "Testing Level 2 (with real AWS)..."
+	@echo "Using AWS credentials from environment"
+	@AWS_ENDPOINT_URL= $(UV) run aws s3 ls
+	@AWS_ENDPOINT_URL= $(UV) run pytest tests/ -v -k "aws" --aws-integration
+
+test-level3: ## Run Level 3 tests (with Docker/PostgreSQL)
+	@echo "Testing Level 3 (with Docker/PostgreSQL)..."
 	docker compose up -d postgres
 	@sleep 5
 	$(UV) run pytest tests/test_text_to_sql.py -v
 
-test-level3: ## Run Level 3 tests (with LocalStack)
-	@echo "Testing Level 3 (with LocalStack)..."
+test-level4: ## Run Level 4 tests (with LocalStack)
+	@echo "Testing Level 4 (with LocalStack)..."
 	docker compose up -d
 	@sleep 10
 	awslocal s3 ls
 	$(UV) run pytest tests/ -v -k "localstack"
-
-test-level4: ## Run Level 4 tests (with real AWS)
-	@echo "Testing Level 4 (with real AWS)..."
-	@echo "Using AWS_PROFILE=dev and unsetting LocalStack endpoint"
-	@AWS_PROFILE=dev AWS_ENDPOINT_URL= $(UV) run aws s3 ls
-	@AWS_PROFILE=dev AWS_ENDPOINT_URL= $(UV) run pytest tests/ -v -k "aws" --aws-integration
 
 lint: py-lint org-lint ## Run all linting (Python and Org-mode)
 
