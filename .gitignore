@@ -57,6 +57,7 @@ localstack/volume/
 .env~
 *.env~
 *.log
+workshop-resources.env
 
 # Data
 data/
@@ -85,3 +86,4 @@ architecture.png
 # Downloaded philosophy texts
 data/*.pdf
 data/*.txt
+.repos/

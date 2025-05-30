@@ -1,0 +1,257 @@
+#+TITLE: AWS RAG Workshop Debug Commands
+#+AUTHOR: Jason Walsh
+#+DATE: 2025-05-29
+#+PROPERTY: header-args:bash :results output
+
+* AWS Environment Setup
+
+** Source AWS Credentials
+
+Before running any commands, source the environment:
+
+#+BEGIN_SRC bash :dir /Users/jasonwalsh/projects/jwalsh/aws-genai-rag-workshop-2025
+# Source the .env file for AWS credentials
+source .env
+
+# Verify AWS authentication
+aws sts get-caller-identity
+#+END_SRC
+
+Expected output for workshop participant:
+#+BEGIN_EXAMPLE
+{
+    "UserId": "AROAUJ4VFZPSTODLQLOCT:Participant",
+    "Account": "296128728037",
+    "Arn": "arn:aws:sts::296128728037:assumed-role/WSParticipantRole/Participant"
+}
+#+END_EXAMPLE
+
+* AWS CLI Commands for RAG Workshop Setup
+
+These commands replicate the Python setup functions used in the workshop notebooks.
+
+** Check AWS Account and Models
+
+#+BEGIN_SRC bash
+# Check which Bedrock models have been enabled
+aws bedrock list-foundation-models --region us-west-2
+
+# Source environment first
+source .env
+
+# Get AWS account information
+export AWS_REGION="us-west-2"
+export ACCOUNT_NUMBER="296128728037"  # Workshop account
+export ROLE_ARN="arn:aws:iam::${ACCOUNT_NUMBER}:role/BedrockExecutionRoleForKB"
+
+# Print account details
+echo "AWS Account: ${ACCOUNT_NUMBER}"
+echo "Role ARN: ${ROLE_ARN}"
+#+END_SRC
+
+** Resource Name Generation Function
+
+This replicates the ~get_resource_names()~ function from the Python code:
+
+#+BEGIN_SRC bash
+#!/bin/bash
+
+# Function to get resource names (matches Python function exactly)
+get_resource_names() {
+    local account_number=$1
+    local region_name=${2:-"us-west-2"}
+    
+    # Generate resource names
+    export S3_BUCKET_NAME="${account_number}-${region_name}-advanced-rag-workshop"
+    export KNOWLEDGE_BASE_NAME_AOSS="advanced-rag-workshop-knowledgebase-aoss"
+    export KNOWLEDGE_BASE_NAME_GRAPHRAG="advanced-rag-workshop-knowledgebase-graphrag"
+    export OSS_VECTOR_STORE_NAME="advancedrag"
+    export OSS_INDEX_NAME="ws-index-"
+}
+
+# Source environment and set account
+source .env
+ACCOUNT_NUMBER="296128728037"  # Workshop account
+REGION_NAME="us-west-2"
+
+# Call the function
+get_resource_names $ACCOUNT_NUMBER $REGION_NAME
+
+# Print all resource names
+echo "S3 Bucket Name: ${S3_BUCKET_NAME}"
+echo "Knowledge Base (AOSS): ${KNOWLEDGE_BASE_NAME_AOSS}"
+echo "Knowledge Base (GraphRAG): ${KNOWLEDGE_BASE_NAME_GRAPHRAG}"
+echo "OpenSearch Vector Store Name: ${OSS_VECTOR_STORE_NAME}"
+echo "OpenSearch Index Name Prefix: ${OSS_INDEX_NAME}"
+#+END_SRC
+
+** Quick Setup Commands
+
+For quick copy/paste setup:
+
+#+BEGIN_SRC bash
+# Source environment and set values
+source .env
+ACCOUNT_NUMBER="296128728037"  # Workshop account
+REGION_NAME="us-west-2"
+
+# Set all resource names exactly as the Python function does
+S3_BUCKET_NAME="${ACCOUNT_NUMBER}-${REGION_NAME}-advanced-rag-workshop"
+KNOWLEDGE_BASE_NAME_AOSS="advanced-rag-workshop-knowledgebase-aoss"
+KNOWLEDGE_BASE_NAME_GRAPHRAG="advanced-rag-workshop-knowledgebase-graphrag"
+OSS_VECTOR_STORE_NAME="advancedrag"
+OSS_INDEX_NAME="ws-index-"
+
+# Create S3 bucket
+aws s3 mb s3://${S3_BUCKET_NAME} --region ${REGION_NAME}
+
+# Verify bucket creation
+aws s3 ls | grep ${S3_BUCKET_NAME}
+#+END_SRC
+
+** Save Environment Variables
+
+Save resource names for reuse:
+
+#+BEGIN_SRC bash :dir /Users/jasonwalsh/projects/jwalsh/aws-genai-rag-workshop-2025
+# Source AWS credentials first
+source .env
+
+# Save to environment file
+cat > workshop-resources.env << EOF
+export ACCOUNT_NUMBER="${ACCOUNT_NUMBER}"
+export REGION_NAME="${REGION_NAME}"
+export S3_BUCKET_NAME="${S3_BUCKET_NAME}"
+export KNOWLEDGE_BASE_NAME_AOSS="${KNOWLEDGE_BASE_NAME_AOSS}"
+export KNOWLEDGE_BASE_NAME_GRAPHRAG="${KNOWLEDGE_BASE_NAME_GRAPHRAG}"
+export OSS_VECTOR_STORE_NAME="${OSS_VECTOR_STORE_NAME}"
+export OSS_INDEX_NAME="${OSS_INDEX_NAME}"
+export ROLE_ARN="arn:aws:iam::${ACCOUNT_NUMBER}:role/BedrockExecutionRoleForKB"
+EOF
+
+echo "Resource names saved to workshop-resources.env"
+echo "Source it with: source workshop-resources.env"
+#+END_SRC
+
+** Verify Setup
+
+#+BEGIN_SRC bash :dir /Users/jasonwalsh/projects/jwalsh/aws-genai-rag-workshop-2025
+# Source AWS credentials and workshop resources
+source .env
+source workshop-resources.env
+
+# Verify all variables are set
+echo "=== Workshop Resources ==="
+echo "Account: ${ACCOUNT_NUMBER}"
+echo "Region: ${REGION_NAME}"
+echo "S3 Bucket: ${S3_BUCKET_NAME}"
+echo "Knowledge Base AOSS: ${KNOWLEDGE_BASE_NAME_AOSS}"
+echo "Knowledge Base GraphRAG: ${KNOWLEDGE_BASE_NAME_GRAPHRAG}"
+echo "OpenSearch Collection: ${OSS_VECTOR_STORE_NAME}"
+echo "OpenSearch Index Prefix: ${OSS_INDEX_NAME}"
+echo "IAM Role: ${ROLE_ARN}"
+
+# Check if S3 bucket exists
+aws s3 ls s3://${S3_BUCKET_NAME} --region ${REGION_NAME} 2>/dev/null && echo "✓ S3 bucket exists" || echo "✗ S3 bucket not found"
+#+END_SRC
+
+** Additional Bedrock Commands
+
+#+BEGIN_SRC bash :dir /Users/jasonwalsh/projects/jwalsh/aws-genai-rag-workshop-2025
+# Ensure AWS credentials are sourced
+source .env
+# List available embedding models
+aws bedrock list-foundation-models --region ${REGION_NAME} \
+    --query "modelSummaries[?contains(modelId, 'embed')].[modelId,modelName]" \
+    --output table
+
+# List available text generation models
+aws bedrock list-foundation-models --region ${REGION_NAME} \
+    --query "modelSummaries[?contains(modelId, 'claude') || contains(modelId, 'titan')].[modelId,modelName]" \
+    --output table
+
+# Test Titan embedding model
+echo '{"inputText": "Test embedding"}' > /tmp/test-embed.json
+aws bedrock-runtime invoke-model \
+    --model-id amazon.titan-embed-text-v1 \
+    --body file:///tmp/test-embed.json \
+    --region ${REGION_NAME} \
+    /tmp/embed-response.json
+
+# Check embedding dimension
+jq '.embedding | length' /tmp/embed-response.json
+#+END_SRC
+
+** IAM Role Creation (if needed)
+
+#+BEGIN_SRC bash :dir /Users/jasonwalsh/projects/jwalsh/aws-genai-rag-workshop-2025
+# Source credentials
+source .env
+# Create the Bedrock execution role if it doesn't exist
+ROLE_NAME="BedrockExecutionRoleForKB"
+
+# Check if role exists
+aws iam get-role --role-name ${ROLE_NAME} 2>/dev/null || {
+    echo "Creating IAM role..."
+    
+    # Create trust policy
+    cat > /tmp/trust-policy.json << EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "bedrock.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+
+    # Create role
+    aws iam create-role \
+        --role-name ${ROLE_NAME} \
+        --assume-role-policy-document file:///tmp/trust-policy.json
+    
+    # Attach required policies
+    aws iam attach-role-policy \
+        --role-name ${ROLE_NAME} \
+        --policy-arn arn:aws:iam::aws:policy/AmazonBedrockFullAccess
+    
+    aws iam attach-role-policy \
+        --role-name ${ROLE_NAME} \
+        --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess
+    
+    aws iam attach-role-policy \
+        --role-name ${ROLE_NAME} \
+        --policy-arn arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+    
+    echo "Role created successfully"
+}
+#+END_SRC
+
+* Troubleshooting
+
+** Common Issues
+
+1. **S3 Bucket Already Exists**: If the bucket name is taken, add a unique suffix:
+   #+BEGIN_SRC bash
+   S3_BUCKET_NAME="${ACCOUNT_NUMBER}-${REGION_NAME}-advanced-rag-workshop-$(date +%s)"
+   #+END_SRC
+
+2. **Bedrock Model Access**: Ensure models are enabled in the Bedrock console:
+   #+BEGIN_SRC bash
+   # Check model access
+   aws bedrock get-foundation-model-availability \
+       --model-id amazon.titan-embed-text-v1 \
+       --region ${REGION_NAME}
+   #+END_SRC
+
+3. **IAM Permissions**: Verify your user has necessary permissions:
+   #+BEGIN_SRC bash
+   # Test permissions
+   aws iam list-roles --query "Roles[?contains(RoleName, 'Bedrock')]" --output table
+   aws s3api list-buckets --query "Buckets[?contains(Name, 'rag')]" --output table
+   #+END_SRC
