@@ -107,6 +107,40 @@ test-level4: ## Run Level 4 tests (with LocalStack)
 	awslocal s3 ls
 	$(UV) run pytest tests/ -v -k "localstack"
 
+test-level5: ## Run Level 5 tests (Terraform on LocalStack)
+	@echo "Testing Level 5 (Infrastructure as Code)..."
+	@echo "Setting up infrastructure with Terraform on LocalStack..."
+	@echo ""
+	# Ensure LocalStack is running
+	@docker compose up -d localstack || { echo "Failed to start LocalStack"; exit 1; }
+	@echo "Waiting for LocalStack to be ready..."
+	@sleep 10
+	# Create Lambda deployment package
+	@cd infra/terraform-localstack && \
+		if [ ! -f lambda_function.zip ]; then \
+			echo "Creating Lambda deployment package..."; \
+			zip lambda_function.zip lambda_function.py; \
+		fi
+	# Initialize and apply Terraform
+	@cd infra/terraform-localstack && \
+		terraform init && \
+		terraform plan && \
+		terraform apply -auto-approve
+	# Test the deployed infrastructure
+	@echo ""
+	@echo "Testing deployed infrastructure..."
+	@awslocal s3 ls
+	@awslocal dynamodb list-tables
+	@awslocal sqs list-queues
+	@echo ""
+	@echo "✓ Level 5 infrastructure deployed successfully!"
+	@echo "Run 'make destroy-level5' to clean up"
+
+destroy-level5: ## Destroy Level 5 Terraform infrastructure
+	@echo "Destroying Level 5 infrastructure..."
+	@cd infra/terraform-localstack && terraform destroy -auto-approve
+	@echo "✓ Level 5 infrastructure destroyed"
+
 lint: py-lint org-lint ## Run all linting (Python and Org-mode)
 
 py-lint: ## Run Python linting with ruff

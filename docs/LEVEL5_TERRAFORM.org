@@ -1,0 +1,284 @@
+#+TITLE: Level 5: Infrastructure as Code with Terraform on LocalStack
+#+AUTHOR: Jason Walsh
+#+DATE: 2025-05-30
+
+* Overview
+
+Level 5 introduces Infrastructure as Code (IaC) practices using Terraform to provision the RAG workshop infrastructure on LocalStack. This level demonstrates how to manage cloud resources declaratively and test infrastructure changes locally before deploying to AWS.
+
+* Why Level 5?
+
+- *Infrastructure as Code*: Version control your infrastructure
+- *Reproducibility*: Consistent environments across development, staging, and production
+- *Local Testing*: Test infrastructure changes without AWS costs
+- *Best Practices*: Learn IaC patterns applicable to real AWS deployments
+
+* Components Deployed
+
+** Storage
+- S3 buckets for documents and embeddings
+- DynamoDB tables for vector metadata and knowledge base configurations
+
+** Compute
+- Lambda function for document processing
+- IAM roles and policies for service access
+
+** Messaging
+- SQS queues for asynchronous document processing
+- Dead letter queue for failed messages
+
+** Search
+- OpenSearch domain for vector search (simulated as Elasticsearch in LocalStack)
+
+** Monitoring
+- CloudWatch log groups for Lambda functions
+
+* Prerequisites
+
+#+BEGIN_SRC shell
+# Install Terraform (macOS)
+brew install terraform
+
+# Install Terraform (Linux)
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+
+# Verify installation
+terraform --version
+#+END_SRC
+
+* Quick Start
+
+#+BEGIN_SRC shell
+# Run Level 5 test (includes infrastructure provisioning)
+make test-level5
+
+# Or manually:
+cd infra/terraform-localstack
+terraform init
+terraform plan
+terraform apply
+
+# Test the infrastructure
+./test-infrastructure.sh
+
+# Clean up
+make destroy-level5
+#+END_SRC
+
+* Directory Structure
+
+#+BEGIN_SRC
+infra/terraform-localstack/
+├── main.tf                 # Main Terraform configuration
+├── variables.tf           # Variable definitions
+├── lambda_function.py     # Sample Lambda function
+├── lambda_function.zip    # Lambda deployment package (generated)
+├── test-infrastructure.sh # Infrastructure test script
+└── README.md             # LocalStack-specific documentation
+#+END_SRC
+
+* Testing the Infrastructure
+
+** Automated Testing
+
+The test script validates all deployed components:
+
+#+BEGIN_SRC shell
+cd infra/terraform-localstack
+./test-infrastructure.sh
+#+END_SRC
+
+** Manual Testing
+
+*** S3 Buckets
+#+BEGIN_SRC shell
+# List buckets
+awslocal s3 ls
+
+# Upload a test document
+echo "Test document for RAG" > test.txt
+awslocal s3 cp test.txt s3://genai-rag-workshop-documents-localstack/
+
+# List bucket contents
+awslocal s3 ls s3://genai-rag-workshop-documents-localstack/
+#+END_SRC
+
+*** DynamoDB Tables
+#+BEGIN_SRC shell
+# List tables
+awslocal dynamodb list-tables
+
+# Put test item
+awslocal dynamodb put-item \
+  --table-name genai-rag-workshop-vector-metadata-localstack \
+  --item '{
+    "document_id": {"S": "doc123"},
+    "chunk_id": {"S": "chunk001"},
+    "timestamp": {"N": "1234567890"},
+    "content": {"S": "Test chunk content"}
+  }'
+
+# Query table
+awslocal dynamodb scan \
+  --table-name genai-rag-workshop-vector-metadata-localstack
+#+END_SRC
+
+*** Lambda Function
+#+BEGIN_SRC shell
+# List functions
+awslocal lambda list-functions
+
+# Invoke function
+awslocal lambda invoke \
+  --function-name genai-rag-workshop-rag-processor-localstack \
+  --payload '{"action": "process_document", "document_key": "test.txt"}' \
+  response.json
+
+# View response
+cat response.json | jq .
+#+END_SRC
+
+*** SQS Queues
+#+BEGIN_SRC shell
+# List queues
+awslocal sqs list-queues
+
+# Get queue URL
+QUEUE_URL=$(awslocal sqs get-queue-url \
+  --queue-name genai-rag-workshop-document-processing-localstack \
+  --query 'QueueUrl' --output text)
+
+# Send message
+awslocal sqs send-message \
+  --queue-url $QUEUE_URL \
+  --message-body '{"document": "test.pdf", "action": "process"}'
+
+# Receive message
+awslocal sqs receive-message --queue-url $QUEUE_URL
+#+END_SRC
+
+* Extending the Infrastructure
+
+** Adding New Resources
+
+Edit `main.tf` to add new resources:
+
+#+BEGIN_SRC terraform
+# Example: Add a new S3 bucket
+resource "aws_s3_bucket" "rag_models" {
+  bucket = "${var.project_name}-models-${var.environment}"
+  
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-models-${var.environment}"
+    Type = "ModelStorage"
+  })
+}
+#+END_SRC
+
+** Modifying Existing Resources
+
+#+BEGIN_SRC terraform
+# Example: Increase Lambda memory
+resource "aws_lambda_function" "rag_processor" {
+  # ... existing configuration ...
+  memory_size = 1024  # Increased from 512
+}
+#+END_SRC
+
+* Terraform State Management
+
+LocalStack maintains Terraform state locally. For production:
+
+#+BEGIN_SRC terraform
+# backend.tf (for real AWS)
+terraform {
+  backend "s3" {
+    bucket = "my-terraform-state"
+    key    = "rag-workshop/terraform.tfstate"
+    region = "us-west-2"
+  }
+}
+#+END_SRC
+
+* Migration to Real AWS
+
+To deploy to real AWS:
+
+1. Update provider configuration:
+#+BEGIN_SRC terraform
+provider "aws" {
+  region = var.region
+  # Remove LocalStack-specific configurations
+}
+#+END_SRC
+
+2. Update resource names (remove localstack suffix)
+3. Configure real AWS credentials
+4. Run terraform plan to review changes
+5. Apply with terraform apply
+
+* Best Practices
+
+1. *Version Control*: Commit Terraform files to git
+2. *State Management*: Use remote state for team collaboration
+3. *Modules*: Break infrastructure into reusable modules
+4. *Variables*: Use variables for environment-specific values
+5. *Outputs*: Export important values for other systems
+6. *Tagging*: Consistent tagging for cost tracking
+
+* Troubleshooting
+
+** Terraform Init Fails
+#+BEGIN_SRC shell
+# Clear Terraform cache
+rm -rf .terraform .terraform.lock.hcl
+terraform init
+#+END_SRC
+
+** LocalStack Connection Issues
+#+BEGIN_SRC shell
+# Check LocalStack is running
+docker ps | grep localstack
+
+# Test connection
+awslocal s3 ls
+
+# Check logs
+docker logs localstack
+#+END_SRC
+
+** Resource Creation Fails
+- Check LocalStack supports the resource type
+- Verify LocalStack Pro features aren't required
+- Review terraform plan output
+- Check LocalStack logs for errors
+
+* Cost Comparison
+
+| Environment | Infrastructure | Monthly Cost |
+|-------------|----------------|--------------|
+| LocalStack  | Full RAG stack | $0          |
+| AWS Dev     | Minimal setup  | ~$50-100    |
+| AWS Prod    | HA setup       | ~$500-1000  |
+
+* Next Steps
+
+1. Modify the Terraform configuration to add new features
+2. Create Terraform modules for reusable components
+3. Implement CI/CD pipeline for infrastructure changes
+4. Explore Terraform workspaces for multiple environments
+5. Add monitoring and alerting infrastructure
+
+* Summary
+
+Level 5 demonstrates that the same infrastructure code can be tested locally with LocalStack and deployed to real AWS. This approach:
+
+- Reduces development costs
+- Speeds up testing cycles
+- Prevents accidental AWS charges
+- Teaches IaC best practices
+- Provides a safe learning environment
+
+The skills learned here directly apply to production AWS deployments!

@@ -27,6 +27,7 @@ This hands-on workshop guides you through building production-ready Retrieval Au
 - *Level 2*: AWS Account with configured credentials
 - *Level 3*: Docker and Docker Compose  
 - *Level 4*: LocalStack (via Docker)
+- *Level 5*: Terraform (Infrastructure as Code on LocalStack)
 
 *** Supported Operating Systems / Environments
 
@@ -142,6 +143,10 @@ make validate-level1       # Quick RAG validation (no AWS)
 make validate-workshop     # Full workshop validation
 make validate-ci          # CI-friendly validation
 make test-level1          # Python-only compatibility test
+make test-level2          # AWS integration test
+make test-level3          # Docker/PostgreSQL test
+make test-level4          # LocalStack test
+make test-level5          # Terraform on LocalStack test
 #+END_SRC
 
 *** LocalStack Management
@@ -296,6 +301,7 @@ aws --endpoint-url=http://localhost:4566 s3 ls
 - [[https://langchain.readthedocs.io/][LangChain Documentation]]
 - [[https://www.localstack.cloud/][LocalStack Documentation]]
 - [[https://awscli.amazonaws.com/v2/documentation/api/latest/reference/][AWS CLI v2 Reference]]
+- [[file:docs/LEVEL5_TERRAFORM.org][Level 5: Infrastructure as Code Guide]]
 
 ** Support
 
